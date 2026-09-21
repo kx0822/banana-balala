@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>水果果果园</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        terminal: {
+                            bg: '#ffffff',
+                            text: '#000000',
+                            border: '#000000',
+                            input: '#f0f0f0',
+                            button: '#333333',
+                            buttonText: '#ffffff'
+                        }
+                    },
+                    fontFamily: {
+                        mono: ['Courier New', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .terminal-shadow {
+                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            }
+            .fixed-game-container {
+                /* 关键：设置固定尺寸和边框盒模型 */
+                width: 100%;
+                height: 500px;
+                box-sizing: border-box;
+                overflow: hidden;
+            }
+            .game-content {
+                /* 内容区域固定高度，超出滚动 */
+                height: calc(100% - 60px);
+                overflow-y: auto;
+            }
+            .interaction-area {
+                /* 交互区域固定高度，不随内容变化 */
+                height: 60px;
+                box-sizing: border-box;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center justify-center p-4">
+    <div class="max-w-2xl w-full">
+        <!-- 游戏标题 -->
+        <h1 class="text-3xl font-bold text-center mb-6 font-mono">水果果果园</h1>
+
+        <!-- 游戏主框 - 完全固定大小 -->
+        <div class="fixed-game-container border-4 border-terminal-border bg-terminal-bg rounded-md p-4 terminal-shadow">
+            <!-- 游戏内容区域 -->
+            <div id="gameOutput" class="game-content font-mono text-terminal-text whitespace-pre-wrap"></div>
+
+            <!-- 交互区域（固定高度） -->
+            <div class="interaction-area">
+                <!-- 输入区域 -->
+                <div id="inputArea" class="hidden flex items-center gap-2 h-full">
+                    <input type="text" id="userInput" class="flex-1 bg-terminal-input border border-terminal-border p-2 rounded focus:outline-none focus:ring-2 focus:ring-terminal-border" placeholder="输入内容...">
+                    <button id="submitBtn" class="bg-terminal-button text-terminal-text p-2 rounded hover:bg-gray-600 transition-colors">
+                        <i class="fa fa-check text-terminal-buttonText"></i>
+                    </button>
+                </div>
+
+                <!-- 选择按钮区域 -->
+                <div id="choicesArea" class="hidden flex flex-wrap gap-2 justify-center items-center h-full">
+                    <!-- 按钮将动态生成在这里 -->
+                </div>
+            </div>
+        </div>
+
+        <!-- 游戏说明 -->
+        <div class="text-center mt-4 text-sm text-gray-600">
+            <p>一个基于终端风格的水果种植模拟游戏</p>
+        </div>
+    </div>
+
+    <script>
+        // 游戏数据
+        const gameData = {
+            dayMax: 5,
+            fruitList: ['梨', '榴莲', '苹果', '香蕉', "橙子", "荔枝"],
+            seed: [5, 20, 4, 6, 5, 12],
+            production: [8, 4, 10, 18, 9, 6],
+            price: [2, 12, 2, 1, 2, 5],
+            weatherList: ["晴", "阴", "雨"],
+            waterChange: [-2, 0, 5],
+            fertilizerChange: [-1, 0, 0],
+
+            // 游戏状态变量
+            water: 5,
+            fertilizer: 3,
+            day: 1,
+            w: 0,
+            f: 0,
+            p: 0,
+            pesticideAvailable: 1,
+            pesticide: 0,
+            money: 100,
+            num: 0,
+            id: 0,
+            name: '',
+            bugDate: 0,
+            wallet: {},
+            currentInputType: '', // 'text', 'choice'
+            currentChoiceCallback: null,
+            outputLines: [],
+            isProcessing: false,
+            // 缩短等待时间（原1000ms改为600ms）
+            shortDelay: 600,
+            // 超短等待时间（原500ms改为300ms）
+            ultraShortDelay: 300
+        };
+
+        // DOM 元素
+        const gameOutput = document.getElementById('gameOutput');
+        const inputArea = document.getElementById('inputArea');
+        const userInput = document.getElementById('userInput');
+        const submitBtn = document.getElementById('submitBtn');
+        const choicesArea = document.getElementById('choicesArea');
+
+        // 初始化游戏
+        function initGame() {
+            // 从本地存储加载数据
+            loadGameData();
+
+            // 绑定事件
+            submitBtn.addEventListener('click', handleInputSubmit);
+            userInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') handleInputSubmit();
+            });
+
+            // 开始游戏
+            startGame();
+        }
+
+        // 加载游戏数据
+        function loadGameData() {
+            const savedData = localStorage.getItem('fruitFarmData');
+            if (savedData) {
+                gameData.wallet = JSON.parse(savedData);
+            }
+        }
+
+        // 保存游戏数据
+        function saveGameData() {
+            gameData.wallet[gameData.name] = Math.round(gameData.money);
+            localStorage.setItem('fruitFarmData', JSON.stringify(gameData.wallet));
+        }
+
+        // 开始游戏
+        function startGame() {
+            addOutputLine("欢迎来到==水果果果园==！!");
+            setTimeout(() => {
+                showInput("请问你的名字是？", handleNameInput);
+            }, gameData.shortDelay);
+        }
+
+        // 处理名字输入
+        function handleNameInput(name) {
+            gameData.name = name;
+
+            if (gameData.wallet.hasOwnProperty(name)) {
+                gameData.money = gameData.wallet[name];
+                addOutputLine(`欢迎${name}回到==水果果果园==！！！！`);
+                setTimeout(() => {
+                    addOutputLine(`${name}的当前余额：${gameData.money} 元`);
+                    setTimeout(startNewRound, gameData.shortDelay);
+                }, gameData.shortDelay);
+            } else {
+                gameData.money = 100;
+                gameData.wallet[name] = 100;
+                addOutputLine(`欢迎${name}来到==水果果果园==，送你 100 元初始资金！`);
+                setTimeout(startNewRound, gameData.shortDelay);
+            }
+        }
+
+        // 开始新一轮种植
+        function startNewRound() {
+            if (gameData.money < 80) {
+                addOutputLine(`${gameData.name}穷穷的~`);
+                setTimeout(() => {
+                    gameData.money += 100;
+                    addOutputLine(`收到了来自好心香蕉的资助，余额增加100元，现在的余额是${gameData.money}元`);
+                    setTimeout(purchaseSeeds, gameData.shortDelay);
+                }, gameData.shortDelay);
+            } else {
+                setTimeout(purchaseSeeds, gameData.shortDelay);
+            }
+        }
+
+        // 购买种子
+        function purchaseSeeds() {
+            addOutputLine("下面开始水果果种植之旅吧~ 请问你想种哪种水果？");
+            setTimeout(() => {
+                // 使用按钮选择水果种类
+                showChoices("", gameData.fruitList, handleFruitChoice);
+            }, gameData.shortDelay);
+        }
+
+        // 处理水果选择（按钮形式）
+        function handleFruitChoice(fruitName) {
+            // 找到选中水果的索引
+            gameData.id = gameData.fruitList.indexOf(fruitName);
+            addOutputLine("现在开始购买种子吧~");
+            setTimeout(() => {
+                addOutputLine(`一个${gameData.fruitList[gameData.id]}的种子价值${gameData.seed[gameData.id]}元，你现在一共有${gameData.money}元`);
+                setTimeout(() => {
+                    showInput(`请问你要买多少个${gameData.fruitList[gameData.id]}种子：`, handleSeedCount);
+                }, gameData.shortDelay);
+            }, gameData.shortDelay);
+        }
+
+        // 处理种子数量
+        function handleSeedCount(input) {
+            const count = parseInt(input);
+            if (isNaN(count) || count <= 0) {
+                addOutputLine("请输入一个正整数！");
+                setTimeout(() => {
+                    showInput(`请问你要买多少个${gameData.fruitList[gameData.id]}种子：`, handleSeedCount);
+                }, gameData.ultraShortDelay);
+                return;
+            }
+
+            const totalCost = count * gameData.seed[gameData.id];
+            if (totalCost > gameData.money) {
+                addOutputLine("你的钱不够哦，少买一点吧");
+                setTimeout(() => {
+                    showInput(`请问你要买多少个${gameData.fruitList[gameData.id]}种子：`, handleSeedCount);
+                }, gameData.ultraShortDelay);
+                return;
+            }
+
+            // 购买成功
+            gameData.num = count;
+            gameData.money -= totalCost;
+            addOutputLine(`购买成功，你现在还有${gameData.money}元`);
+
+            // 初始化游戏状态
+            gameData.water = 5;
+            gameData.fertilizer = 3;
+            gameData.w = 0;
+            gameData.f = 0;
+            gameData.p = 0;
+            gameData.pesticideAvailable = 1;
+            gameData.pesticide = 0;
+            gameData.bugDate = Math.floor(Math.random() * gameData.dayMax) + 1;
+            gameData.day = 1;
+
+            setTimeout(startDays, gameData.shortDelay);
+        }
+
+        // 开始每一天的流程
+        function startDays() {
+            if (gameData.day > gameData.dayMax) {
+                // 所有天数结束，结算
+                setTimeout(settlement, gameData.shortDelay);
+                return;
+            }
+
+            // 到下一天时才空行
+            if (gameData.day > 1) {
+                addOutputLine("");
+            }
+
+            // 处理一天的流程
+            dailyProcess();
+        }
+
+        // 一天的流程
+        function dailyProcess() {
+            // 随机天气
+            const weatherIndex = Math.floor(Math.random() * 3);
+            addOutputLine(`今天是第${gameData.day}天，今天的天气是：${gameData.weatherList[weatherIndex]}`);
+
+            // 更新水和肥料
+            gameData.water += gameData.waterChange[weatherIndex];
+            gameData.fertilizer += gameData.fertilizerChange[weatherIndex];
+
+            setTimeout(() => {
+                // 询问是否浇水
+                showChoices("你今天要浇水吗？", ["浇水", "不浇水"], handleWaterChoice);
+            }, gameData.shortDelay);
+        }
+
+        // 处理浇水选择
+        function handleWaterChoice(choice) {
+            if (choice === "浇水") {
+                gameData.water += 3;
+            }
+            setTimeout(() => {
+                // 询问是否施肥
+                showChoices("你今天要施肥吗？", ["施肥", "不施肥"], handleFertilizerChoice);
+            }, gameData.ultraShortDelay);
+        }
+
+        // 处理施肥选择
+        function handleFertilizerChoice(choice) {
+            if (choice === "施肥") {
+                gameData.fertilizer += 3;
+            }
+            setTimeout(() => {
+                // 处理杀虫剂
+                if (gameData.pesticideAvailable >= 1) {
+                    showChoices("你今天要喷洒杀虫剂吗？（效果持续3天，只可以喷一次）", ["喷喷", "不喷喷"], handlePesticideChoice);
+                } else {
+                    gameData.pesticide -= 1;
+                    setTimeout(checkBugInfestation, gameData.ultraShortDelay);
+                }
+            }, gameData.ultraShortDelay);
+        }
+
+        // 处理杀虫剂选择
+        function handlePesticideChoice(choice) {
+            if (choice === "喷喷") {
+                gameData.pesticide = 3;
+                gameData.pesticideAvailable = 0;
+            }
+            setTimeout(checkBugInfestation, gameData.ultraShortDelay);
+        }
+
+        // 检查是否发生虫害
+        function checkBugInfestation() {
+            if (gameData.day === gameData.bugDate) {
+                addOutputLine("蝗虫来了！");
+                setTimeout(() => {
+                    if (gameData.pesticide > 0) {
+                        addOutputLine("还好提前喷了杀虫剂，保住了果园");
+                        setTimeout(handleRandomEvent, gameData.shortDelay);
+                    } else {
+                        addOutputLine("完了，全完了。。。");
+                        setTimeout(() => {
+                            addOutputLine(`所有${gameData.fruitList[gameData.id]}都被吃完了。。。`);
+                            setTimeout(() => {
+                                gameData.p -= 1000;
+                                handleRandomEvent();
+                            }, gameData.shortDelay);
+                        }, gameData.shortDelay);
+                    }
+                }, gameData.shortDelay);
+            } else {
+                setTimeout(handleRandomEvent, gameData.ultraShortDelay);
+            }
+        }
+
+        // 处理随机事件
+        function handleRandomEvent() {
+            const funNum = 14;
+            const limit = funNum + 7;
+            const r = Math.floor(Math.random() * (limit + 1));
+
+            if (r <= funNum) {
+                // 只在随机事件与前一个内容之间添加空行
+                addOutputLine("");
+                // 根据随机数调用对应的事件函数
+                switch(r) {
+                    case 0: fun0(); break;
+                    case 1: fun1(); break;
+                    case 2: fun2(); break;
+                    case 3: fun3(); break;
+                    case 4: fun4(); break;
+                    case 5: fun5(); break;
+                    case 6: fun6(); break;
+                    case 7: fun7(); break;
+                    case 8: fun8(); break;
+                    case 9: fun9(); break;
+                    case 10: fun10(); break;
+                    case 11: fun11(); break;
+                    case 12: fun12(); break;
+                    case 13: fun13(); break;
+                    case 14: fun14(); break;
+                }
+            } else {
+                // 没有随机事件
+                setTimeout(nextDay, gameData.shortDelay);
+            }
+        }
+
+        // 随机事件函数
+        function fun0() {
+            addOutputLine("天有不测风云，突然开始打雷了！！！");
+            setTimeout(() => {
+                gameData.fertilizer += 6;
+                addOutputLine("土壤里的肥料浓度增加了");
+                setTimeout(nextDay, gameData.shortDelay);
+            }, gameData.shortDelay);
+        }
+
+        function fun1() {
+            addOutputLine("有一只卡比兽来到了你的果园，吃掉了30%的水果！！！");
+            setTimeout(() => {
+                gameData.p -= 0.3;
+                nextDay();
+            }, gameData.shortDelay);
+        }
+
+        function fun2() {
+            addOutputLine("你发现有一个老人在你的果园里摘水果！！");
+            setTimeout(() => {
+                showChoices("你要不要上前制止他？", ["驱赶", "不驱赶"], (choice) => {
+                    if (choice === "驱赶") {
+                        gameData.p -= 0.05;
+                        addOutputLine(`你立刻把他赶走了，但是在那之前他还是吃了你几个${gameData.fruitList[gameData.id]}`);
+                    } else {
+                        gameData.p -= 0.3;
+                        addOutputLine(`你看老人可怜没驱赶他，结果他摘走你果园里好多的${gameData.fruitList[gameData.id]}`);
+                    }
+                    setTimeout(nextDay, gameData.shortDelay);
+                });
+            }, gameData.shortDelay);
+        }
+
+        function fun3() {
+            addOutputLine("你发现有一个老人在你的果园里摘水果！！");
+            setTimeout(() => {
+                showChoices("你要不要上前制止他？", ["驱赶", "不驱赶"], (choice) => {
+                    if (choice === "驱赶") {
+                        gameData.p -= 0.05;
+                        addOutputLine(`你立刻把他赶走了，但是在那之前他还是吃了你几个${gameData.fruitList[gameData.id]}`);
+                    } else {
+                        gameData.p += 0.4;
+                        addOutputLine("你看你看老人可怜没驱赶他");
+                        setTimeout(() => {
+                            addOutputLine(`老人摘了你果园里好多的${gameData.fruitList[gameData.id]}`);
+                            setTimeout(() => {
+                                addOutputLine("老人离开果园之前特意来感谢你，他说你的果园一定会大丰收的！");
+                                setTimeout(nextDay, gameData.shortDelay);
+                            }, gameData.shortDelay);
+                        }, gameData.shortDelay);
+                    }
+                    if (choice === "驱赶") {
+                        setTimeout(nextDay, gameData.shortDelay);
+                    }
+                });
+            }, gameData.shortDelay);
+        }
+
+        function fun4() {
+            addOutputLine("天有不测风云，突然开始打雷了！！！");
+            setTimeout(() => {
+                addOutputLine(`一道雷下来，劈到了一株${gameData.fruitList[gameData.id]}，${gameData.fruitList[gameData.id]}植株着火啦！！`);
+                setTimeout(() => {
+                    addOutputLine("火势蔓延开来了！！！");
+                    setTimeout(() => {
+                        addOutputLine("你立马就去救火了，但是还是有一半的植株被烧了。。。");
+                        setTimeout(() => {
+                            gameData.p -= 0.5;
+                            nextDay();
+                        }, gameData.shortDelay);
+                    }, gameData.shortDelay);
+                }, gameData.shortDelay);
+            }, gameData.shortDelay);
+        }
+
+        function fun5() {
+            addOutputLine("突然下起了暴雨，果园积水严重！");
+            setTimeout(() => {
+                showChoices("你要排水吗？", ["紧急排水", "不管它"], (choice) => {
+                    if (choice === "紧急排水") {
+                        addOutputLine("你成功排除了积水，但部分水果被水泡坏了...");
+                        gameData.p -= 0.1;
+                    } else {
+                        addOutputLine("你没有及时处理，果园被淹，损失惨重！");
+                        gameData.p -= 0.4;
+                    }
+                    setTimeout(nextDay, gameData.shortDelay);
+                });
+            }, gameData.shortDelay);
+        }
+
+        function fun6() {
+            addOutputLine("一群蜜蜂来到果园授粉！");
+            setTimeout(() => {
+                addOutputLine(`${gameData.fruitList[gameData.id]}的花朵授粉效果特别好，产量增加了！`);
+                setTimeout(() => {
+                    gameData.p += 0.2;
+                    nextDay();
+                }, gameData.shortDelay);
+            }, gameData.shortDelay);
+        }
+
+        function fun7() {
+            addOutputLine("一群游客误以为你的果园是采摘园，开始摘水果！");
+            setTimeout(() => {
+                showChoices("你要怎么做？", ["制止", "不制止"], (choice) => {
+                    if (choice === "不制止") {
+                        addOutputLine(`游客摘得很开心，他们以高于市场价的价格买下了他们摘的${gameData.fruitList[gameData.id]}`);
+                        const additionalMoney = Math.floor(gameData.price[gameData.id] * 1.2 * 0.3 * gameData.num * gameData.production[gameData.id]);
+                        gameData.money += additionalMoney;
+                        gameData.p -= 0.5;
+                    } else {
+                        addOutputLine("你赶走了游客，但果园还是被摘了一部分水果...");
+                        gameData.p -= 0.3;
+                    }
+                    setTimeout(nextDay, gameData.shortDelay);
+                });
+            }, gameData.shortDelay);
+        }
+
+        function fun8() {
+            addOutputLine("一群游客误以为你的果园是采摘园，开始摘水果！");
+            setTimeout(() => {
+                showChoices("你要怎么做？", ["制止", "不制止"], (choice) => {
+                    if (choice === "不制止") {
+                        addOutputLine(`这帮游客真的很没素质，摘完就走了！！！过分！！！`);
+                        gameData.p -= 0.5;
+                    } else {
+                        addOutputLine("你赶走了游客，但果园还是被摘了一部分水果...");
+                        gameData.p -= 0.3;
+                    }
+                    setTimeout(nextDay, gameData.shortDelay);
+                });
+            }, gameData.shortDelay);
+        }
+
+        function fun9() {
+            addOutputLine("轰！！！");
+            setTimeout(() => {
+                addOutputLine("一颗陨石砸中了你的果园！！！");
+                setTimeout(() => {
+                    addOutputLine("奇迹的是，陨石富含矿物质，土壤肥力大增！");
+                    setTimeout(() => {
+                        gameData.fertilizer += 10;
+                        addOutputLine("但部分果树被砸毁了...");
+                        setTimeout(() => {
+                            gameData.p -= 0.3;
+                            nextDay();
+                        }, gameData.shortDelay);
+                    }, gameData.shortDelay);
+                }, gameData.shortDelay);
+            }, gameData.shortDelay);
+        }
+
+        function fun10() {
+            addOutputLine("一个神秘商人来到果园，兜售“超级生长剂”！");
+            setTimeout(() => {
+                const options = ["买", "不买", "砍价"];
+                showChoices(`你要购买吗？（花费100元，你的余额是${gameData.money}元）`, options, (choice) => {
+                    let cost = 100;
+                    if (choice === "砍价") {
+                        const success = Math.random() > 0.5;
+                        if (success) {
+                            cost = 80;
+                            addOutputLine("砍价成功！神秘商人同意你以80元的价格购买");
+                        } else {
+                            addOutputLine("神秘商人不同意你砍价");
+                        }
+                        setTimeout(() => {
+                            showChoices("所以你要买吗？", ["买", "不买"], (finalChoice) => {
+                                handleGrowthAgentPurchase(finalChoice, cost);
+                            });
+                        }, gameData.shortDelay);
+                    } else {
+                        handleGrowthAgentPurchase(choice, cost);
+                    }
+                });
+            }, gameData.shortDelay);
+        }
+
+        function handleGrowthAgentPurchase(choice, cost) {
+            if (choice === "买" && gameData.money >= cost) {
+                addOutputLine("生长剂效果拔群，水果长得又大又好！");
+                gameData.p += 0.5;
+                gameData.money -= cost;
+            } else if (choice === "买" && gameData.money < cost) {
+                addOutputLine("你的余额不足哦~");
+            } else {
+                addOutputLine("商人摇摇头离开了");
+            }
+            setTimeout(nextDay, gameData.shortDelay);
+        }
+
+        function fun11() {
+            addOutputLine(`这天有个网红在网上发布了在你的果园拍的照片`);
+            setTimeout(() => {
+                addOutputLine("你的果园突然成为网红打卡地！");
+                setTimeout(() => {
+                    showChoices("要把来果园打卡的人们赶走吗？", ["驱赶", "不驱赶"], (choice) => {
+                        if (choice === "驱赶") {
+                            addOutputLine("你把来果园拍照的人们都赶走了");
+                            setTimeout(() => {
+                                addOutputLine("无事发生");
+                                setTimeout(nextDay, gameData.shortDelay);
+                            }, gameData.shortDelay);
+                        } else {
+                            addOutputLine("你选择了向进入果园的人们收取门票费用，赚取门票费200元");
+                            gameData.money += 200;
+                            setTimeout(nextDay, gameData.shortDelay);
+                        }
+                    });
+                }, gameData.shortDelay);
+            }, gameData.shortDelay);
+        }
+
+        function fun12() {
+            addOutputLine(`在${gameData.name}熟睡的时候，有小偷偷偷潜入果园偷东西`);
+            setTimeout(() => {
+                addOutputLine(`小偷发现了${gameData.name}的小金库！！！`);
+                setTimeout(() => {
+                    if (gameData.money <= 50) {
+                        addOutputLine(`小偷觉得${gameData.name}太穷了，给${gameData.name}留下了100元`);
+                        gameData.money += 100;
+                    } else {
+                        const lostMoney = gameData.money;
+                        addOutputLine(`${gameData.name}的钱全被小偷偷走了（你损失了${lostMoney}元）`);
+                        gameData.money = 0;
+                    }
+                    setTimeout(nextDay, gameData.shortDelay);
+                }, gameData.shortDelay);
+            }, gameData.shortDelay);
+        }
+
+        function fun13() {
+            addOutputLine("轰！");
+            setTimeout(() => {
+                addOutputLine("轰！！");
+                setTimeout(() => {
+                    addOutputLine("轰！！！");
+                    setTimeout(() => {
+                        addOutputLine("三颗陨石从天而降！！！把果园砸了个稀巴烂。。。");
+                        setTimeout(() => {
+                            addOutputLine("所有植株都没有了。。。");
+                            setTimeout(() => {
+                                gameData.p -= 0.8;
+                                nextDay();
+                            }, gameData.shortDelay);
+                        }, gameData.shortDelay);
+                    }, gameData.shortDelay);
+                }, gameData.shortDelay);
+            }, gameData.shortDelay);
+        }
+
+        function fun14() {
+            addOutputLine("你发现有一个老人在你的果园里摘水果！！");
+            setTimeout(() => {
+                addOutputLine("你上去制止老人");
+                setTimeout(() => {
+                    addOutputLine("老人偷水果被抓包，着急逃跑，结果不小心跌跤了，头破血流");
+                    setTimeout(() => {
+                        addOutputLine("老人一口咬定，是你推的他，要你赔钱，死缠烂打");
+                        setTimeout(() => {
+                            const lostMoney = Math.floor(gameData.money / 2);
+                            addOutputLine(`老人讹了你一半的财产，你损失了${lostMoney}元`);
+                            gameData.money -= lostMoney;
+                            setTimeout(nextDay, gameData.shortDelay);
+                        }, gameData.shortDelay);
+                    }, gameData.shortDelay);
+                }, gameData.shortDelay);
+            }, gameData.shortDelay);
+        }
+
+        // 进入下一天
+        function nextDay() {
+            gameData.day++;
+            setTimeout(startDays, gameData.ultraShortDelay);
+        }
+
+        // 结算
+        function settlement() {
+            addOutputLine("");
+            addOutputLine("到收获的日子了，来看看收成吧~");
+            setTimeout(() => {
+                // 检查水分
+                let waterRate = 0;
+                if (gameData.water < 3) {
+                    waterRate = -0.5;
+                    addOutputLine("严重缺水，减产一半");
+                } else if (gameData.water <= 7) {
+                    waterRate = -0.3;
+                    addOutputLine("轻略缺水，小幅减产");
+                } else if (gameData.water <= 14) {
+                    waterRate = 0;
+                    addOutputLine("水量正常，标准产量");
+                } else if (gameData.water <= 22) {
+                    waterRate = 0.2;
+                    addOutputLine("水量充沛，增产20%");
+                } else {
+                    waterRate = -0.6;
+                    addOutputLine("水太多烂根，大幅减产");
+                }
+
+                // 检查肥料
+                let fertilizerRate = 0;
+                setTimeout(() => {
+                    if (gameData.fertilizer <= 3) {
+                        fertilizerRate = -0.5;
+                        addOutputLine("肥力耗尽，减产一半");
+                    } else if (gameData.fertilizer <= 10) {
+                        fertilizerRate = 0;
+                        addOutputLine("肥度正常，标准产量");
+                    } else if (gameData.fertilizer <= 16) {
+                        fertilizerRate = 0.2;
+                        addOutputLine("肥力充足，增产20%");
+                    } else {
+                        fertilizerRate = -0.6;
+                        addOutputLine("肥害烧根，大幅减产");
+                    }
+
+                    // 计算最终产量
+                    setTimeout(() => {
+                        const rate = Math.max(1 + waterRate + fertilizerRate + gameData.p, 0);
+                        const realProduction = Math.floor(rate * gameData.production[gameData.id] * gameData.num);
+                        const profit = realProduction * gameData.price[gameData.id];
+                        gameData.money += profit;
+
+                        addOutputLine(`最终收成是${realProduction}个${gameData.fruitList[gameData.id]}`);
+                        setTimeout(() => {
+                            addOutputLine(`每个${gameData.fruitList[gameData.id]}的售价是${gameData.price[gameData.id]}元，你通过卖${gameData.fruitList[gameData.id]}赚了${profit}元！！`);
+                            setTimeout(() => {
+                                const seedCost = gameData.num * gameData.seed[gameData.id];
+                                if (seedCost < profit) {
+                                    addOutputLine(`恭喜你净赚了${profit - seedCost}元钱！`);
+                                } else if (seedCost > profit) {
+                                    addOutputLine(`没有关系，你这次种植计划也就亏了${seedCost - profit}元钱~`);
+                                    if (gameData.money <= 0) {
+                                        setTimeout(() => {
+                                            addOutputLine("呜呜呜~~没钱了");
+                                            gameData.money = 100;
+                                            setTimeout(() => {
+                                                addOutputLine("因为收到了来自好心香蕉的资助，获得了100元");
+                                            }, gameData.shortDelay);
+                                        }, gameData.shortDelay);
+                                    }
+                                } else {
+                                    addOutputLine(`emm~不赚不赔~只不过这几天白忙活啦~~`);
+                                }
+
+                                setTimeout(() => {
+                                    addOutputLine(`${gameData.name}现在的余额总共有${Math.round(gameData.money)}元！`);
+                                    setTimeout(() => {
+                                        showChoices("请问你还打算开始新一轮的水果种植吗？", ["继续", "结束"], handleNewRoundChoice);
+                                    }, gameData.shortDelay);
+                                }, gameData.shortDelay);
+                            }, gameData.shortDelay);
+                        }, gameData.shortDelay);
+                    }, gameData.shortDelay);
+                }, gameData.shortDelay);
+            }, gameData.shortDelay);
+        }
+
+        // 处理新一轮选择
+        function handleNewRoundChoice(choice) {
+            if (choice === "继续") {
+                startNewRound();
+            } else {
+                saveGameData();
+                addOutputLine("游戏结束，余额已保存！");
+            }
+        }
+
+        // 添加输出行
+        function addOutputLine(text) {
+            gameData.outputLines.push(text);
+            updateOutputDisplay();
+            // 滚动到底部
+            gameOutput.scrollTop = gameOutput.scrollHeight;
+        }
+
+        // 更新输出显示
+        function updateOutputDisplay() {
+            gameOutput.textContent = gameData.outputLines.join('\n');
+        }
+
+        // 显示输入框
+        function showInput(promptText, callback) {
+            // 隐藏选择区域
+            choicesArea.classList.add('hidden');
+
+            // 显示输入区域
+            addOutputLine(promptText);
+            inputArea.classList.remove('hidden');
+            userInput.value = '';
+            userInput.focus();
+            gameData.currentInputType = 'text';
+            gameData.currentChoiceCallback = callback;
+        }
+
+        // 显示选择按钮
+        function showChoices(promptText, choices, callback) {
+            // 隐藏输入区域
+            inputArea.classList.add('hidden');
+
+            // 如果有提示文本，添加到输出
+            if (promptText) {
+                addOutputLine(promptText);
+            }
+
+            // 显示并创建选择按钮
+            choicesArea.classList.remove('hidden');
+            choicesArea.innerHTML = '';
+
+            choices.forEach(choice => {
+                const button = document.createElement('button');
+                button.className = 'bg-terminal-button text-terminal-buttonText px-4 py-2 rounded hover:bg-gray-600 transition-colors';
+                button.textContent = choice;
+                button.addEventListener('click', () => {
+                    // 选择后隐藏选择区域
+                    choicesArea.classList.add('hidden');
+                    callback(choice);
+                });
+                choicesArea.appendChild(button);
+            });
+
+            gameData.currentInputType = 'choice';
+            gameData.currentChoiceCallback = callback;
+        }
+
+        // 处理输入提交
+        function handleInputSubmit() {
+            const input = userInput.value.trim();
+            if (input) {
+                inputArea.classList.add('hidden');
+                if (gameData.currentChoiceCallback) {
+                    gameData.currentChoiceCallback(input);
+                }
+            }
+        }
+
+        // 初始化游戏
+        window.onload = initGame;
+    </script>
+</body>
+</html>
