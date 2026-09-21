@@ -1,522 +1,242 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>双色球多注投注小游戏</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: "Microsoft YaHei", sans-serif;
-        }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>我的小游戏合集</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5' fill='%231B1B1F'/%3E%3Ccircle cx='9.5' cy='12' r='6' fill='%23D81E06'/%3E%3Ccircle cx='16' cy='14' r='5' fill='%230055CC'/%3E%3C/svg%3E">
+<style>
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+
+    body {
+        background: #F3F4F6;
+        color: #1B1B1F;
+        font-family: "Microsoft YaHei", "PingFang SC", "Segoe UI", system-ui, sans-serif;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 56px 20px 40px;
+    }
+
+    main {
+        width: 100%;
+        max-width: 860px;
+    }
+
+    /* ===== 头部 ===== */
+    header {
+        margin-bottom: 32px;
+    }
+
+    h1 {
+        font-family: ui-monospace, "Cascadia Mono", "Consolas", "Courier New", monospace;
+        font-size: 40px;
+        font-weight: 700;
+        letter-spacing: 1px;
+        line-height: 1.2;
+    }
+
+    header p {
+        margin-top: 12px;
+        font-size: 15px;
+        color: #5F6470;
+        line-height: 1.7;
+    }
+
+    /* ===== 游戏菜单 ===== */
+    .menu {
+        background: #FFFFFF;
+        border: 1px solid #E4E5E9;
+        border-radius: 14px;
+        overflow: hidden;
+    }
+
+    .game {
+        display: grid;
+        grid-template-columns: 56px 1fr auto;
+        align-items: center;
+        gap: 18px;
+        padding: 20px 24px;
+        text-decoration: none;
+        color: inherit;
+        border-bottom: 1px solid #EDEEF1;
+        transition: background-color 0.18s ease;
+    }
+
+    .game:last-child {
+        border-bottom: none;
+    }
+
+    .game:hover {
+        background: #F7F8FA;
+    }
+
+    .game:focus-visible {
+        outline: 2px solid #1B1B1F;
+        outline-offset: -2px;
+    }
+
+    .chip {
+        width: 56px;
+        height: 56px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: transform 0.18s ease;
+    }
+
+    .game:hover .chip {
+        transform: scale(1.06);
+    }
+
+    .game .info {
+        min-width: 0;
+    }
+
+    .game .name {
+        display: block;
+        font-size: 18px;
+        font-weight: 700;
+    }
+
+    .game .desc {
+        display: block;
+        margin-top: 5px;
+        font-size: 13.5px;
+        color: #5F6470;
+        line-height: 1.6;
+    }
+
+    .go {
+        font-size: 14px;
+        font-weight: 600;
+        color: #FFFFFF;
+        padding: 9px 18px;
+        border-radius: 8px;
+        white-space: nowrap;
+        transition: filter 0.18s ease;
+    }
+
+    .game:hover .go {
+        filter: brightness(0.92);
+    }
+
+    /* 各卡片主题色 */
+    .game.farm .chip      { background: rgba(62, 137, 72, 0.12); color: #3E8948; }
+    .game.farm .go        { background: #3E8948; }
+    .game.farm .chip svg  { stroke: #3E8948; }
+
+    .game.hamburger .chip { background: rgba(217, 108, 44, 0.12); color: #D96C2C; }
+    .game.hamburger .go   { background: #D96C2C; }
+    .game.hamburger .chip svg { stroke: #D96C2C; }
+
+    .game.ball .chip      { background: rgba(216, 30, 6, 0.10); color: #D81E06; }
+    .game.ball .go        { background: #D81E06; }
+    .game.ball .chip svg  { stroke: #D81E06; }
+
+    /* ===== 页脚 ===== */
+    footer {
+        margin-top: 28px;
+        font-size: 12.5px;
+        color: #9AA0A6;
+        text-align: center;
+    }
+
+    /* ===== 移动端 ===== */
+    @media (max-width: 680px) {
         body {
-            background: #f5f5f5;
-            padding: 20px;
-            max-width: 1000px;
-            margin: 0 auto;
-        }
-        .container {
-            background: #fff;
-            padding: 25px;
-            border-radius: 12px;
-            box-shadow: 0 2px 15px rgba(0,0,0,0.1);
-        }
-        h1 {
-            text-align: center;
-            color: #d81e06;
-            margin-bottom: 20px;
-            font-size: 26px;
-        }
-        .balance-box {
-            background: #fff3f3;
-            padding: 12px;
-            border-radius: 8px;
-            text-align: center;
-            font-size: 19px;
-            font-weight: bold;
-            color: #d81e06;
-            margin-bottom: 20px;
-        }
-        .select-area {
-            border: 1px solid #eee;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-        }
-        .title-tip {
-            font-size: 17px;
-            font-weight: bold;
-            margin-bottom: 10px;
-            color: #333;
-        }
-        .red-balls, .blue-balls {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin: 10px 0 15px;
-        }
-        .ball {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            font-size: 14px;
-            user-select: none;
-            transition: all 0.2s ease;
-            opacity: 0.7;
-        }
-        /* 红球基础样式 */
-        .red-ball {
-            background: #ff6b6b;
-            color: #fff;
-            border: 2px solid #ff6b6b;
-        }
-        .red-ball.selected,
-        .red-ball.win {
-            background: #d81e06;
-            border: 3px solid #ffffff;
-            box-shadow: 0 0 8px #d81e06;
-            transform: scale(1.15);
-            opacity: 1;
-        }
-        /* 蓝球基础样式 */
-        .blue-ball {
-            background: #69a0ff;
-            color: #fff;
-            border: 2px solid #69a0ff;
-        }
-        .blue-ball.selected,
-        .blue-ball.win {
-            background: #0055cc;
-            border: 3px solid #ffffff;
-            box-shadow: 0 0 8px #0055cc;
-            transform: scale(1.15);
-            opacity: 1;
+            padding: 36px 14px 28px;
         }
 
-        .operate-btn {
-            display: flex;
-            gap: 12px;
-            margin: 15px 0;
-            flex-wrap: wrap;
+        h1 {
+            font-size: 30px;
         }
-        .btn {
-            padding: 9px 18px;
-            border: none;
-            border-radius: 6px;
-            font-size: 15px;
-            cursor: pointer;
-            font-weight: bold;
-            transition: 0.2s;
+
+        .game {
+            grid-template-columns: 52px 1fr;
+            gap: 14px;
+            padding: 16px;
         }
-        .btn:disabled {
-            background: #ccc !important;
-            cursor: not-allowed;
+
+        .chip {
+            width: 52px;
+            height: 52px;
         }
-        .add-btn {
-            background: #28a745;
-            color: #fff;
-        }
-        .buy-all-btn {
-            background: #d81e06;
-            color: #fff;
-        }
-        .clear-btn {
-            background: #6c757d;
-            color: #fff;
-        }
-        .reset-game {
-            background: #0055cc;
-            color: #fff;
-        }
-        .cost-tip {
-            color: #0055cc;
-            font-weight: bold;
-            margin: 8px 0;
-        }
-        /* 投注列表 */
-        .bet-list {
-            margin: 20px 0;
-            max-height: 300px;
-            overflow-y: auto;
-            border: 1px solid #eee;
-            border-radius: 8px;
-        }
-        .bet-item {
-            padding: 12px;
-            border-bottom: 1px solid #eee;
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            gap: 12px;
-        }
-        .bet-item:last-child {
-            border-bottom: none;
-        }
-        .item-label {
-            font-weight: bold;
-            color: #333;
-        }
-        .ball-group {
-            display: flex;
-            gap: 6px;
-        }
-        /* 开奖结果 */
-        .result-area {
-            margin-top: 20px;
-            padding: 18px;
-            background: #f9f9f9;
-            border-radius: 8px;
-            display: none;
-        }
-        .win-ball-wrap {
-            display: flex;
-            gap: 6px;
-            margin: 4px 0;
-        }
-        .game-over {
+
+        .go {
+            grid-column: 1 / -1;
             text-align: center;
-            font-size: 22px;
-            color: #d81e06;
-            font-weight: bold;
-            margin: 20px 0;
-            display: none;
+            padding: 11px 18px;
         }
-    </style>
+    }
+</style>
 </head>
 <body>
-    <div class="container">
-        <h1>双色球多注投注小游戏</h1>
+<main>
+    <header>
+        <h1>我的小游戏合集</h1>
+        <p>三个用 HTML、CSS 和 JS 做的小玩具，点开就能玩。</p>
+    </header>
 
-        <div class="balance-box">
-            当前余额：<span id="balance">500</span> 元
-        </div>
+    <nav class="menu" aria-label="小游戏列表">
+        <a class="game farm" href="farm.html">
+            <span class="chip" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 21v-7"/>
+                    <path d="M12 14c-2.8 0-5-1.4-5-4.5 2.8 0 5 1.4 5 4.5Z" fill="currentColor" stroke="none"/>
+                    <path d="M12 14c2.8 0 5-1.4 5-4.5C14.2 9.5 12 10.9 12 14Z" fill="currentColor" stroke="none"/>
+                    <path d="M12 21v-4.5"/>
+                    <circle cx="12" cy="16.5" r="2.1" fill="#F3F4F6" stroke="none"/>
+                </svg>
+            </span>
+            <span class="info">
+                <span class="name">水果果果园</span>
+                <span class="desc">文字果园经营小游戏，用 100 元初始资金种水果、慢慢攒家底。</span>
+            </span>
+            <span class="go">进入果园</span>
+        </a>
 
-        <!-- 选号区域 -->
-        <div class="select-area">
-            <div class="title-tip">当前选号（红球≥6个，蓝球≥1个，支持复式）</div>
-            <div>红球 1-33：</div>
-            <div class="red-balls" id="redBalls"></div>
+        <a class="game hamburger" href="hamburger.html">
+            <span class="chip" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4 9.5h16c0-2.6-3.6-4.5-8-4.5S4 6.9 4 9.5Z" fill="currentColor" stroke="none"/>
+                    <path d="M4 12.5h16" stroke-width="2"/>
+                    <path d="M4 14h16" stroke-width="1.4" stroke-dasharray="1 3" opacity="0.7"/>
+                    <rect x="4" y="14.5" width="16" height="4" rx="1.6" fill="#C9812F" stroke="none"/>
+                    <path d="M6 19.8h12c0 1-1 1.8-2 1.8H8c-1 0-2-.8-2-1.8Z" fill="#E8A95B" stroke="none"/>
+                </svg>
+            </span>
+            <span class="info">
+                <span class="name">汉堡小摊模拟器</span>
+                <span class="desc">文字汉堡摊经营游戏，带 3500 元启动资金，从第一单汉堡做起。</span>
+            </span>
+            <span class="go">进入小摊</span>
+        </a>
 
-            <div>蓝球 1-16：</div>
-            <div class="blue-balls" id="blueBalls"></div>
+        <a class="game ball" href="double-color-ball.html">
+            <span class="chip" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="9.5" cy="12.5" r="6" fill="currentColor" stroke="none"/>
+                    <circle cx="16" cy="14.5" r="4.8" fill="#0055CC" stroke="none"/>
+                    <circle cx="7.6" cy="10.6" r="1.5" fill="#FFFFFF" opacity="0.75"/>
+                    <circle cx="14.6" cy="12.8" r="1.1" fill="#FFFFFF" opacity="0.75"/>
+                </svg>
+            </span>
+            <span class="info">
+                <span class="name">双色球多注投注小游戏</span>
+                <span class="desc">红蓝双色球多注投注模拟，机选一注试试今天的手气。</span>
+            </span>
+            <span class="go">开始投注</span>
+        </a>
+    </nav>
 
-            <div class="cost-tip" id="singleCost">请选择号码</div>
-
-            <div class="operate-btn">
-                <button class="btn add-btn" id="addOne">添加当前为一注</button>
-                <button class="btn buy-all-btn" id="buyAll">我买好了，立即开奖</button>
-                <button class="btn clear-btn" id="clearList">清空所有投注</button>
-                <button class="btn reset-game" id="resetGame">重新开始游戏</button>
-            </div>
-        </div>
-
-        <div class="cost-tip">累计投注金额：<span id="totalCost">0</span> 元</div>
-
-        <!-- 投注列表 -->
-        <div class="title-tip">已选投注清单</div>
-        <div class="bet-list" id="betList"></div>
-
-        <!-- 游戏结束提示 -->
-        <div class="game-over" id="gameOver">❌ 游戏结束，余额不足2元，无法继续投注</div>
-
-        <!-- 开奖结果区域 -->
-        <div class="result-area" id="resultArea">
-            <div class="title-tip">🎉 本期开奖号码</div>
-            <div class="win-ball-wrap" id="winNumShow"></div>
-            <hr style="margin:15px 0;">
-            <div class="title-tip">每注中奖明细</div>
-            <div id="detailResult"></div>
-            <hr style="margin:15px 0;">
-            <div class="cost-tip">本次总中奖金额：<span id="totalWin">0</span> 元</div>
-            <div class="cost-tip">开奖后剩余余额：<span id="finalBalance">0</span> 元</div>
-        </div>
-    </div>
-
-<script>
-    // 全局变量
-    let balance = 500;
-    const PRICE_PER = 2;
-    let selectedRed = [];
-    let selectedBlue = [];
-    let betList = [];
-
-    // 阶乘 & 组合数 C(n,6)
-    function factorial(n) {
-        let res = 1;
-        for(let i=2; i<=n; i++) res *= i;
-        return res;
-    }
-    function getComb(n) {
-        if(n < 6) return 0;
-        return factorial(n) / (factorial(6) * factorial(n - 6));
-    }
-    // 数组组合：从arr选k个
-    function getGroup(arr, k) {
-        let res = [];
-        const dfs = (start, path) => {
-            if(path.length === k) {
-                res.push([...path]);
-                return;
-            }
-            for(let i=start; i<arr.length; i++){
-                path.push(arr[i]);
-                dfs(i+1, path);
-                path.pop();
-            }
-        };
-        dfs(0, []);
-        return res;
-    }
-
-    // 初始化球号
-    const redWrap = document.getElementById('redBalls');
-    for(let i=1; i<=33; i++){
-        let ball = document.createElement('div');
-        ball.className = 'ball red-ball';
-        ball.innerText = i;
-        ball.dataset.num = i;
-        ball.onclick = () => toggleRed(i);
-        redWrap.appendChild(ball);
-    }
-    const blueWrap = document.getElementById('blueBalls');
-    for(let i=1; i<=16; i++){
-        let ball = document.createElement('div');
-        ball.className = 'ball blue-ball';
-        ball.innerText = i;
-        ball.dataset.num = i;
-        ball.onclick = () => toggleBlue(i);
-        blueWrap.appendChild(ball);
-    }
-
-    // 切换红球选中
-    function toggleRed(num){
-        let el = document.querySelector(`.red-ball[data-num="${num}"]`);
-        if(selectedRed.includes(num)){
-            selectedRed = selectedRed.filter(x=>x!==num);
-            el.classList.remove('selected');
-        } else {
-            selectedRed.push(num);
-            el.classList.add('selected');
-        }
-        updateSingleCost();
-    }
-    // 切换蓝球选中
-    function toggleBlue(num){
-        let el = document.querySelector(`.blue-ball[data-num="${num}"]`);
-        if(selectedBlue.includes(num)){
-            selectedBlue = selectedBlue.filter(x=>x!==num);
-            el.classList.remove('selected');
-        } else {
-            selectedBlue.push(num);
-            el.classList.add('selected');
-        }
-        updateSingleCost();
-    }
-
-    // 更新当前选号花费
-    function updateSingleCost(){
-        let rLen = selectedRed.length;
-        let bLen = selectedBlue.length;
-        let rComb = getComb(rLen);
-        let totalNote = rComb * bLen;
-        let cost = totalNote * PRICE_PER;
-        let tip = document.getElementById('singleCost');
-        let addBtn = document.getElementById('addOne');
-
-        if(rLen >=6 && bLen >=1){
-            tip.innerText = `当前组合：${totalNote} 注，花费 ${cost} 元`;
-            addBtn.disabled = (balance < cost);
-        } else {
-            tip.innerText = "红球至少选6个，蓝球至少选1个";
-            addBtn.disabled = true;
-        }
-        refreshTotalCost();
-    }
-
-    // 刷新累计投注金额
-    function refreshTotalCost(){
-        let sum = 0;
-        betList.forEach(item=> sum += item.cost);
-        document.getElementById('totalCost').innerText = sum;
-        document.getElementById('buyAll').disabled = (sum === 0 || balance < sum);
-    }
-
-    // 生成球HTML（中奖样式 = 选号选中样式）
-    function buildSimpleBallHtml(numList, type, winList) {
-        let html = '<div class="ball-group">';
-        numList.forEach(num => {
-            let cls = type === 'red' ? 'ball red-ball' : 'ball blue-ball';
-            if(winList.includes(num)) {
-                cls += ' win';
-            }
-            html += `<div class="${cls}">${num}</div>`;
-        });
-        html += '</div>';
-        return html;
-    }
-
-    // 渲染投注清单（纯彩球，无文字标签）
-    function renderBetList(){
-        let wrap = document.getElementById('betList');
-        wrap.innerHTML = '';
-        betList.forEach((item, idx)=>{
-            let div = document.createElement('div');
-            div.className = 'bet-item';
-            let redHtml = buildSimpleBallHtml(item.red.sort((a,b)=>a-b), 'red', []);
-            let blueHtml = buildSimpleBallHtml(item.blue, 'blue', []);
-            div.innerHTML = `
-                <span class="item-label">第${idx+1}注：</span>
-                ${redHtml}
-                ${blueHtml}
-                <span class="cost-tip">花费：${item.cost} 元</span>
-            `;
-            wrap.appendChild(div);
-        });
-    }
-
-    // 清空当前选号
-    function clearSelect(){
-        selectedRed = [];
-        selectedBlue = [];
-        document.querySelectorAll('.ball').forEach(b=>b.classList.remove('selected'));
-        updateSingleCost();
-    }
-
-    // 添加一注
-    document.getElementById('addOne').addEventListener('click', ()=>{
-        let rLen = selectedRed.length;
-        let bLen = selectedBlue.length;
-        let rComb = getComb(rLen);
-        let note = rComb * bLen;
-        let cost = note * PRICE_PER;
-
-        betList.push({
-            red: [...selectedRed],
-            blue: [...selectedBlue],
-            cost: cost
-        });
-        renderBetList();
-        refreshTotalCost();
-        clearSelect();
-    });
-
-    // 清空投注列表
-    document.getElementById('clearList').addEventListener('click', ()=>{
-        betList = [];
-        renderBetList();
-        refreshTotalCost();
-    });
-
-    // 单组号码算奖金
-    function calcPrize(userR, userB, winR, winB){
-        let matchR = userR.filter(x=>winR.includes(x)).length;
-        let matchB = userB === winB ? 1 : 0;
-        if(matchR ===6 && matchB ===1) return 2000;
-        if(matchR ===6 && matchB ===0) return 1000;
-        if(matchR ===5 && matchB ===1) return 300;
-        if((matchR===5&&matchB===0) || (matchR===4&&matchB===1)) return 20;
-        if((matchR===4&&matchB===0) || (matchR===3&&matchB===1)) return 10;
-        if((matchR===2&&matchB===1) || (matchR===1&&matchB===1) || (matchR===0&&matchB===1)) return 5;
-        return 0;
-    }
-
-    // 生成开奖号码
-    function createWinNum(){
-        let r = [];
-        while(r.length <6){
-            let n = Math.floor(Math.random()*33)+1;
-            if(!r.includes(n)) r.push(n);
-        }
-        r.sort((a,b)=>a-b);
-        let b = Math.floor(Math.random()*16)+1;
-        return {red:r, blue:b};
-    }
-
-    // 统一开奖
-    document.getElementById('buyAll').addEventListener('click', ()=>{
-        let totalPay = 0;
-        betList.forEach(item=> totalPay += item.cost);
-        if(balance < totalPay) return;
-
-        // 扣费
-        balance -= totalPay;
-        document.getElementById('balance').innerText = balance;
-
-        // 生成开奖号
-        let win = createWinNum();
-        // 渲染开奖球
-        let winRedHtml = buildSimpleBallHtml(win.red, 'red', win.red);
-        let winBlueHtml = buildSimpleBallHtml([win.blue], 'blue', [win.blue]);
-        document.getElementById('winNumShow').innerHTML = winRedHtml + winBlueHtml;
-
-        // 逐注计算中奖 & 渲染明细
-        let detailHtml = '';
-        let totalWinMoney = 0;
-        betList.forEach((item, idx)=>{
-            let redGroup = getGroup(item.red, 6);
-            let itemWin = 0;
-            redGroup.forEach(rArr=>{
-                item.blue.forEach(b=>{
-                    itemWin += calcPrize(rArr, b, win.red, win.blue);
-                });
-            });
-            totalWinMoney += itemWin;
-
-            let redBallHtml = buildSimpleBallHtml(item.red.sort((a,b)=>a-b), 'red', win.red);
-            let blueBallHtml = buildSimpleBallHtml(item.blue, 'blue', [win.blue]);
-
-            detailHtml += `
-                <div class="bet-item">
-                    <span class="item-label">第${idx+1}注：</span>
-                    ${redBallHtml}
-                    ${blueBallHtml}
-                    <span class="cost-tip">本注中奖：${itemWin} 元</span>
-                </div>
-            `;
-        });
-
-        // 加上奖金
-        balance += totalWinMoney;
-        document.getElementById('totalWin').innerText = totalWinMoney;
-        document.getElementById('finalBalance').innerText = balance;
-        document.getElementById('detailResult').innerHTML = detailHtml;
-        document.getElementById('resultArea').style.display = 'block';
-
-        // 游戏结束判断
-        if(balance < PRICE_PER){
-            document.getElementById('gameOver').style.display = 'block';
-            document.getElementById('addOne').disabled = true;
-            document.getElementById('buyAll').disabled = true;
-        }
-
-        // 清空投注列表，准备下一轮
-        betList = [];
-        renderBetList();
-        refreshTotalCost();
-        clearSelect();
-    });
-
-    // 重新开始整局游戏
-    document.getElementById('resetGame').addEventListener('click', ()=>{
-        balance = 500;
-        betList = [];
-        clearSelect();
-        document.getElementById('balance').innerText = balance;
-        document.getElementById('resultArea').style.display = 'none';
-        document.getElementById('gameOver').style.display = 'none';
-        renderBetList();
-        refreshTotalCost();
-    });
-
-    // 初始化
-    updateSingleCost();
-    renderBetList();
-</script>
+    <footer>本页与三个小游戏都是静态文件，托管在 GitHub Pages。</footer>
+</main>
 </body>
 </html>
