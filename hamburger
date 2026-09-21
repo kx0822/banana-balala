@@ -1,0 +1,1398 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>汉堡小摊模拟器</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        terminal: {
+                            bg: '#ffffff',
+                            text: '#000000',
+                            border: '#000000',
+                            input: '#f0f0f0',
+                            button: '#333333',
+                            buttonText: '#ffffff'
+                        }
+                    },
+                    fontFamily: {
+                        mono: ['Courier New', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .terminal-shadow {
+                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            }
+            .fixed-game-container {
+                width: 100%;
+                height: 500px;
+                box-sizing: border-box;
+                overflow: hidden;
+            }
+            .game-content {
+                height: calc(100% - 60px);
+                overflow-y: auto;
+            }
+            .interaction-area {
+                height: 60px;
+                box-sizing: border-box;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center justify-center p-4">
+    <div class="max-w-2xl w-full">
+        <h1 class="text-3xl font-bold text-center mb-6 font-mono">汉堡小摊模拟器</h1>
+
+        <div class="fixed-game-container border-4 border-terminal-border bg-terminal-bg rounded-md p-4 terminal-shadow">
+            <div id="gameOutput" class="game-content font-mono text-terminal-text whitespace-pre-wrap"></div>
+
+            <div class="interaction-area">
+                <div id="inputArea" class="hidden flex items-center gap-2 h-full">
+                    <input type="text" id="userInput" class="flex-1 bg-terminal-input border border-terminal-border p-2 rounded focus:outline-none focus:ring-2 focus:ring-terminal-border" placeholder="输入内容...">
+                    <button id="submitBtn" class="bg-terminal-button text-terminal-text p-2 rounded hover:bg-gray-600 transition-colors">
+                        <i class="fa fa-check text-terminal-buttonText"></i>
+                    </button>
+                </div>
+
+                <div id="choicesArea" class="hidden flex flex-wrap gap-2 justify-center items-center h-full">
+                    <!-- 按钮将动态生成在这里 -->
+                </div>
+            </div>
+        </div>
+
+        <div class="text-center mt-4 text-sm text-gray-600">
+            <p>一个基于终端风格的汉堡小摊模拟游戏</p>
+        </div>
+    </div>
+
+    <script>
+        // 游戏数据
+        const gameData = {
+            // 游戏配置
+            dayMax: 5,
+            flowMap: [100, 70, 50],
+            funNum: 14,
+            limit: 19, // 14 + 5
+            lenNum: 11,
+            limit2: 12, // 11 + 1
+            cost: 10,
+            price: 15,
+
+            // 游戏状态
+            money: 3500,
+            dayTime: 1,
+            flow: 0,
+            meat: 0,
+            fresh: 0,
+            rate: 0,
+            rate2: 0,
+            map: 0,
+            dayCheck: 1,
+            unlocked: [],
+            name: '',
+            wallet: {},
+            currentInputType: '',
+            currentChoiceCallback: null,
+            outputLines: [],
+            shortDelay: 600,
+            ultraShortDelay: 300
+        };
+
+        // DOM 元素
+        const gameOutput = document.getElementById('gameOutput');
+        const inputArea = document.getElementById('inputArea');
+        const userInput = document.getElementById('userInput');
+        const submitBtn = document.getElementById('submitBtn');
+        const choicesArea = document.getElementById('choicesArea');
+
+        // 初始化游戏
+        function initGame() {
+            loadGameData();
+
+            submitBtn.addEventListener('click', handleInputSubmit);
+            userInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') handleInputSubmit();
+            });
+
+            startGame();
+        }
+
+        // 加载游戏数据
+        function loadGameData() {
+            const savedData = localStorage.getItem('burgerStandData');
+            if (savedData) {
+                gameData.wallet = JSON.parse(savedData);
+            }
+        }
+
+        // 保存游戏数据
+        function saveGameData() {
+            gameData.wallet[gameData.name] = Math.round(gameData.money);
+            localStorage.setItem('burgerStandData', JSON.stringify(gameData.wallet));
+        }
+
+        // 开始游戏
+        function startGame() {
+            addOutputLine("欢迎来到==汉堡小摊==模拟系统！");
+            setTimeout(() => {
+                showInput("请输入你的名字：", handleNameInput);
+            }, gameData.shortDelay);
+        }
+
+        // 处理名字输入
+        function handleNameInput(name) {
+            gameData.name = name;
+
+            if (gameData.wallet.hasOwnProperty(name)) {
+                gameData.money = gameData.wallet[name];
+                addOutputLine(`欢迎${name}回到汉堡小摊！`);
+                setTimeout(() => {
+                    addOutputLine(`${name}的当前余额：${gameData.money} 元`);
+
+                    // 如果余额少于2000，夜市老板香小蕉补满到2000
+                    if (gameData.money < 2000) {
+                        setTimeout(() => {
+                            addOutputLine(`你的余额不足2000元，夜市老板香小蕉帮你补满到2000元！`);
+                            gameData.money = 2000;
+                            setTimeout(startNewGame, gameData.shortDelay);
+                        }, gameData.shortDelay);
+                    } else {
+                        setTimeout(startNewGame, gameData.shortDelay);
+                    }
+                }, gameData.shortDelay);
+            } else {
+                gameData.money = 3500;
+                gameData.wallet[name] = 3500;
+                addOutputLine(`欢迎${name}来到汉堡小摊，初始资金3500元！`);
+                setTimeout(startNewGame, gameData.shortDelay);
+            }
+        }
+
+        // 开始新游戏
+        function startNewGame() {
+            addOutputLine(`接下来${gameData.dayMax}天你将经营夜市上的一辆汉堡小餐车`);
+            setTimeout(() => {
+                addOutputLine(`首先请问你想要租夜市的哪个场地？你现在有${gameData.money}元`);
+                setTimeout(() => {
+                    showChoices("", ["1:高客流量(2000)", "2:中等客流量(1500)", "3:低客流量(1000)"], handleMapChoice);
+                }, gameData.shortDelay);
+            }, gameData.shortDelay);
+        }
+
+        // 处理场地选择
+        function handleMapChoice(choice) {
+            const map = parseInt(choice.charAt(0)) - 1;
+            const costs = [2000, 1500, 1000];
+            const cost = costs[map];
+
+            if (gameData.money < cost) {
+                addOutputLine("你的钱不够哦，请重新选择");
+                setTimeout(() => {
+                    showChoices("", ["1:高客流量(2000)", "2:中等客流量(1500)", "3:低客流量(1000)"], handleMapChoice);
+                }, gameData.ultraShortDelay);
+                return;
+            }
+
+            gameData.map = map;
+            gameData.money -= cost;
+            gameData.flow = gameData.flowMap[map];
+
+            if (map === 0) {
+                addOutputLine("你选择了高流量区，第一天流量约100单");
+            } else if (map === 1) {
+                addOutputLine("你选择了中等流量区，第一天流量约70单");
+            } else {
+                addOutputLine("你选择了低流量区，第一天流量约50单");
+            }
+
+            setTimeout(() => {
+                addOutputLine("下面开始购买食材（一份食材对应一个汉堡）");
+                setTimeout(() => {
+                    addOutputLine("【提示】");
+                    setTimeout(() => {
+                        addOutputLine("购买食材需恰到好处~买少了赚钱少，买多了卖不完第二天新鲜度会降低");
+                        setTimeout(() => {
+                            addOutputLine("新购入食材后，新鲜度为原先食材和新食材混合的结果");
+                            setTimeout(() => {
+                                addOutputLine("新鲜度过低可能会导致顾客拉肚子（10为最新鲜，低于5为不新鲜），要注重食品安全问题哦");
+                                setTimeout(() => {
+                                    addOutputLine("当然你也可以选择丢弃仓库里不新鲜的食材");
+                                    setTimeout(() => {
+                                        addOutputLine("【提示】第二弹");
+                                        setTimeout(() => {
+                                            addOutputLine("过程中有可能触发问答环节，每个问题有两次回答机会");
+                                            setTimeout(() => {
+                                                addOutputLine("请尽可能言简意赅地答对关键词，按点给分哦");
+                                                setTimeout(startDailyCycle, gameData.shortDelay);
+                                            }, gameData.ultraShortDelay);
+                                        }, gameData.ultraShortDelay);
+                                    }, gameData.ultraShortDelay);
+                                }, gameData.ultraShortDelay);
+                            }, gameData.ultraShortDelay);
+                        }, gameData.ultraShortDelay);
+                    }, gameData.ultraShortDelay);
+                }, gameData.ultraShortDelay);
+            }, gameData.shortDelay);
+        }
+
+        // 开始每日循环
+        function startDailyCycle() {
+            if (gameData.dayTime > gameData.dayMax) {
+                setTimeout(endGame, gameData.shortDelay);
+                return;
+            }
+
+            addOutputLine(`\n今天是第${gameData.dayTime}天`);
+            setTimeout(purchase, gameData.shortDelay);
+        }
+
+        // 购买食材
+        function purchase() {
+            addOutputLine(`你现在的余额为${Math.round(gameData.money)}元`);
+
+            setTimeout(() => {
+                if (gameData.dayTime !== 1 && gameData.meat > 0) {
+                    addOutputLine(`你现在还有${Math.round(gameData.meat)}份食材，新鲜度为${Math.min(10, Math.round(gameData.fresh * 100) / 100)}`);
+                    setTimeout(() => {
+                        showInput("请输入你要丢弃食材的数量，不丢弃请输入0", handleDiscard);
+                    }, gameData.ultraShortDelay);
+                } else if (gameData.dayTime !== 1 && gameData.meat === 0) {
+                    addOutputLine("你现在手上没有食材了");
+                    setTimeout(() => {
+                        proceedPurchase();
+                    }, gameData.ultraShortDelay);
+                } else {
+                    setTimeout(() => {
+                        proceedPurchase();
+                    }, gameData.ultraShortDelay);
+                }
+            }, gameData.ultraShortDelay);
+        }
+
+        // 处理丢弃食材
+        function handleDiscard(input) {
+            const discard = parseInt(input);
+            if (isNaN(discard) || discard < 0 || discard > gameData.meat) {
+                addOutputLine("请输入合理的数字");
+                setTimeout(() => {
+                    showInput("请输入你要丢弃食材的数量，不丢弃请输入0", handleDiscard);
+                }, gameData.ultraShortDelay);
+                return;
+            }
+
+            gameData.meat -= discard;
+            if (discard > 0) {
+                addOutputLine(`丢弃${discard}份食材，剩余${gameData.meat}份`);
+            }
+
+            setTimeout(proceedPurchase, gameData.shortDelay);
+        }
+
+        // 继续购买流程
+        function proceedPurchase() {
+            const maxBuy = Math.floor(gameData.money / gameData.cost);
+            addOutputLine(`一份汉堡食材的成本为${gameData.cost}元,售价${gameData.price}元，你最多可以购入${maxBuy}份食材`);
+            setTimeout(() => {
+                showInput("请问你要购买几份食材？", handleBuyCount);
+            }, gameData.ultraShortDelay);
+        }
+
+        // 处理购买数量
+        function handleBuyCount(input) {
+            const count = parseInt(input);
+            if (isNaN(count) || count < 0) {
+                addOutputLine("请输入合理的数字");
+                setTimeout(() => {
+                    showInput("请问你要购买几份食材？", handleBuyCount);
+                }, gameData.ultraShortDelay);
+                return;
+            }
+
+            if (count * gameData.cost > gameData.money) {
+                addOutputLine("你的钱钱不够哦，请重新输入");
+                setTimeout(() => {
+                    showInput("请问你要购买几份食材？", handleBuyCount);
+                }, gameData.ultraShortDelay);
+                return;
+            }
+
+            // 更新新鲜度
+            if (gameData.meat + count > 0) {
+                gameData.fresh = (gameData.meat * gameData.fresh + count * 10) / (gameData.meat + count);
+            } else {
+                gameData.fresh = 0;
+            }
+
+            gameData.meat += count;
+            gameData.money -= count * gameData.cost;
+
+            addOutputLine(`购买成功！当前余额：${Math.round(gameData.money)}元，当前食材：${gameData.meat}份，新鲜度：${Math.min(Math.round(gameData.fresh * 100) / 100, 10)}`);
+            setTimeout(daily, gameData.shortDelay);
+        }
+
+        // 每日经营
+        function daily() {
+            gameData.rate = gameData.rate2;
+            gameData.rate2 = 0;
+
+            // 随机事件
+            setTimeout(() => {
+                const r = Math.floor(Math.random() * (gameData.limit + 1));
+                if (r <= gameData.funNum) {
+                    window[`fun${r}`]();
+                } else {
+                    setTimeout(continueDaily, gameData.shortDelay);
+                }
+            }, gameData.ultraShortDelay);
+        }
+
+        // 继续每日流程
+        function continueDaily() {
+            // 第二次随机事件
+            const r1 = Math.floor(Math.random() * (gameData.limit + 1));
+            const r2 = Math.floor(Math.random() * 2) + 1;
+
+            if (r1 <= gameData.funNum && r2 === 1) {
+                setTimeout(() => {
+                    window[`fun${r1}`]();
+                }, gameData.shortDelay);
+            } else {
+                setTimeout(checkDurianEvent, gameData.shortDelay);
+            }
+        }
+
+        // 检查榴莲事件
+        function checkDurianEvent() {
+            if (gameData.unlocked.includes('durian')) {
+                const r = Math.floor(Math.random() * 3) + 1;
+                if (r === 1) {
+                    setTimeout(fun_durain, gameData.shortDelay);
+                    return;
+                }
+            }
+
+            setTimeout(processSales, gameData.shortDelay);
+        }
+
+        // 处理销售
+        function processSales() {
+            if (gameData.dayCheck > 5) {
+                setTimeout(endDay, gameData.shortDelay);
+                return;
+            }
+
+            let flow = gameData.flowMap[gameData.map];
+            flow = flow * (1 + gameData.rate);
+            const r = Math.floor(Math.random() * (Math.floor(flow * 0.15) * 2 + 1)) - Math.floor(flow * 0.15);
+            flow += r;
+            flow = Math.max(0, flow);
+
+            setTimeout(() => {
+                const sold = Math.min(gameData.meat, Math.floor(flow));
+
+                gameData.money += sold * gameData.price;
+
+                if (flow > gameData.meat) {
+                    addOutputLine("准备的汉堡都卖完啦，下次记得准备足够数量的汉堡哦");
+                } else if (flow === gameData.meat) {
+                    addOutputLine("你简直是个天才，准备的食材不多不少刚刚好");
+                } else {
+                    if (gameData.dayTime <= gameData.dayMax - 1) {
+                        addOutputLine("食材买多了，没事，明天再战！");
+                    } else {
+                        addOutputLine("食材买多了，今天也是你经营的最后一天了，隔壁摊主向你以1元一份的价格回收食材");
+
+                        if (gameData.fresh <= 6.5) {
+                            setTimeout(() => {
+                                addOutputLine("隔壁摊主一看食材，呀~不太新鲜~，说蒜鸟蒜鸟");
+                                setTimeout(() => {
+                                    addOutputLine("隔壁摊主选择了不回收");
+                                }, gameData.ultraShortDelay);
+                            }, gameData.ultraShortDelay);
+                        } else {
+                            const leftover = gameData.meat - sold;
+                            gameData.money += leftover;
+                            addOutputLine(`卖出${leftover}份食材，回收${leftover}元`);
+                        }
+                    }
+                }
+
+                gameData.meat -= sold;
+
+                setTimeout(() => {
+                    if (gameData.unlocked.includes('accountant') && !gameData.unlocked.includes('accountant_advanced')) {
+                        addOutputLine(`今天一共出售了${sold}个汉堡，理应收益${sold * gameData.price}元，理应总余额${Math.round(gameData.money)}元`);
+                        const r = Math.floor(Math.random() * 24) - 15; // -15 到 8
+                        gameData.money = Math.round(gameData.money * (1 + r / 100) * 10) / 10;
+                        addOutputLine(`菠小萝结算余额为${gameData.money}元`);
+
+                        if (r < 0) {
+                            setTimeout(() => {
+                                showChoices("是否需要送菠小萝去上“会计进阶班”?  ", ["1:去（花费300元）", "2：不去"], handleAccountantTraining);
+                            }, gameData.ultraShortDelay);
+                        } else {
+                            setTimeout(updateFreshness, gameData.ultraShortDelay);
+                        }
+                    } else if (gameData.unlocked.includes('accountant_advanced')) {
+                        addOutputLine(`今天一共出售了${sold}个汉堡，理应收益${sold * gameData.price}元，理应总余额${Math.round(gameData.money)}元`);
+                        const r = Math.floor(Math.random() * 14) - 3; // -3 到 10
+                        gameData.money = Math.round(gameData.money * (1 + r / 100) * 10) / 10;
+                        addOutputLine(`菠小萝结算余额为${gameData.money}元`);
+                        setTimeout(updateFreshness, gameData.ultraShortDelay);
+                    } else {
+                        addOutputLine(`今天一共出售了${sold}个汉堡，收益${sold * gameData.price}元，总余额${Math.round(gameData.money)}元`);
+                        setTimeout(updateFreshness, gameData.ultraShortDelay);
+                    }
+                }, gameData.ultraShortDelay);
+            }, gameData.ultraShortDelay);
+        }
+
+        // 处理会计培训选择
+        function handleAccountantTraining(choice) {
+            if (choice === "1:去（花费300元）") {
+                if (gameData.money < 300) {
+                    addOutputLine("你的钱钱不够哦~ 菠小萝没有去上会计进阶班");
+                    setTimeout(updateFreshness, gameData.ultraShortDelay);
+                } else {
+                    addOutputLine("菠小萝去上会计进阶班了");
+                    gameData.unlocked.push('accountant_advanced');
+                    gameData.money -= 300;
+                    setTimeout(updateFreshness, gameData.ultraShortDelay);
+                }
+            } else {
+                addOutputLine("菠小萝没有去上会计进阶班");
+                setTimeout(updateFreshness, gameData.ultraShortDelay);
+            }
+        }
+
+        // 更新新鲜度
+        function updateFreshness() {
+            setTimeout(() => {
+                if (gameData.fresh >= 7.5) {
+                    addOutputLine("你用的食材很新鲜，得到了顾客的好评");
+                    gameData.rate2 += 0.1;
+                }
+                if (gameData.fresh < 5) {
+                    addOutputLine("你的食材不新鲜了，有的顾客吃了拉肚子，在网上发避雷帖子");
+                    gameData.rate -= 0.2;
+                }
+
+                gameData.fresh = Math.max(Math.round((gameData.fresh - 5) * 100) / 100, 0);
+                setTimeout(endDay, gameData.ultraShortDelay);
+            }, gameData.ultraShortDelay);
+        }
+
+        // 结束当天
+        function endDay() {
+            gameData.dayTime++;
+            setTimeout(startDailyCycle, gameData.shortDelay);
+        }
+
+        // 结束游戏
+        function endGame() {
+            addOutputLine("\n======余额结算======");
+            addOutputLine(`你的最终余额为${Math.round(gameData.money)}元`);
+            saveGameData();
+            setTimeout(() => {
+                showChoices("是否开始新一轮游戏？", ["是", "否"], handleNewGameChoice);
+            }, gameData.shortDelay);
+        }
+
+        // 处理新一轮游戏选择
+        function handleNewGameChoice(choice) {
+            if (choice === "是") {
+                // 重置游戏状态
+                gameData.dayTime = 1;
+                gameData.flow = 0;
+                gameData.meat = 0;
+                gameData.fresh = 0;
+                gameData.rate = 0;
+                gameData.rate2 = 0;
+                gameData.dayCheck = 1;
+                gameData.unlocked = [];
+                gameData.cost = 10;
+                gameData.price = 15;
+
+                setTimeout(startNewGame, gameData.shortDelay);
+            } else {
+                addOutputLine("游戏结束，余额已保存！");
+            }
+        }
+
+        // 问答函数
+        function len0() {
+            return new Promise((resolve) => {
+                const keyword = ['宁愿选择榴莲不放手', '宁愿选择留恋不放手'];
+                let attempts = 0;
+
+                function checkAnswer(ans) {
+                    if (keyword.some(k => ans.includes(k))) {
+                        resolve(true);
+                        return true;
+                    }
+                    attempts++;
+                    if (attempts < 2) {
+                        showInput('请问抱着榴莲但一不小心脱手的时候应该唱？', checkAnswer);
+                    } else {
+                        resolve(false);
+                    }
+                    return false;
+                }
+
+                showInput('请问抱着榴莲但一不小心脱手的时候应该唱？', checkAnswer);
+            });
+        }
+
+        function len1() {
+            return new Promise((resolve) => {
+                const keyword = ['瑞士'];
+                let attempts = 0;
+
+                function checkAnswer(ans) {
+                    if (keyword.some(k => ans.includes(k))) {
+                        resolve(true);
+                        return true;
+                    }
+                    attempts++;
+                    if (attempts < 2) {
+                        showInput('请问世界上最卷的地方是哪里', checkAnswer);
+                    } else {
+                        resolve(false);
+                    }
+                    return false;
+                }
+
+                showInput('请问世界上最卷的地方是哪里', checkAnswer);
+            });
+        }
+
+        function len2() {
+            return new Promise((resolve) => {
+                const keyword = ['旺旺仙贝', '旺旺掀被'];
+                let attempts = 0;
+
+                function checkAnswer(ans) {
+                    if (keyword.some(k => ans.includes(k))) {
+                        resolve(true);
+                        return true;
+                    }
+                    attempts++;
+                    if (attempts < 2) {
+                        showInput('旺旺雪饼到了夏天会变成_____?', checkAnswer);
+                    } else {
+                        resolve(false);
+                    }
+                    return false;
+                }
+
+                showInput('旺旺雪饼到了夏天会变成_____?', checkAnswer);
+            });
+        }
+
+        function len3() {
+            return new Promise((resolve) => {
+                const keyword = ['真相会浮出水面', '真象会浮出水面', '推入水里', '推到水里', '推入水中', '推到水中'];
+                let attempts = 0;
+
+                function checkAnswer(ans) {
+                    if (keyword.some(k => ans.includes(k))) {
+                        resolve(true);
+                        return true;
+                    }
+                    attempts++;
+                    if (attempts < 2) {
+                        showInput('请问如何区分真象和假象', checkAnswer);
+                    } else {
+                        resolve(false);
+                    }
+                    return false;
+                }
+
+                showInput('请问如何区分真象和假象', checkAnswer);
+            });
+        }
+
+        function len4() {
+            return new Promise((resolve) => {
+                const keyword = ['酵母', '教母'];
+                let attempts = 0;
+
+                function checkAnswer(ans) {
+                    if (keyword.some(k => ans.includes(k))) {
+                        resolve(true);
+                        return true;
+                    }
+                    attempts++;
+                    if (attempts < 2) {
+                        showInput('请问鸭梨是水果教的教主，榴莲是什么？', checkAnswer);
+                    } else {
+                        resolve(false);
+                    }
+                    return false;
+                }
+
+                showInput('请问鸭梨是水果教的教主，榴莲是什么？', checkAnswer);
+            });
+        }
+
+        function len5() {
+            return new Promise((resolve) => {
+                const keyword = ['太挤'];
+                let attempts = 0;
+
+                function checkAnswer(ans) {
+                    if (keyword.some(k => ans.includes(k))) {
+                        resolve(true);
+                        return true;
+                    }
+                    attempts++;
+                    if (attempts < 2) {
+                        showInput('太空有空间站，______没有空间站', checkAnswer);
+                    } else {
+                        resolve(false);
+                    }
+                    return false;
+                }
+
+                showInput('太空有空间站，______没有空间站', checkAnswer);
+            });
+        }
+
+        function len6() {
+            return new Promise((resolve) => {
+                const keyword = ['菠萝'];
+                let attempts = 0;
+
+                function checkAnswer(ans) {
+                    if (keyword.some(k => ans.includes(k))) {
+                        resolve(true);
+                        return true;
+                    }
+                    attempts++;
+                    if (attempts < 2) {
+                        showInput('千里马常有，而_____不常有', checkAnswer);
+                    } else {
+                        resolve(false);
+                    }
+                    return false;
+                }
+
+                showInput('千里马常有，而_____不常有', checkAnswer);
+            });
+        }
+
+        function len7() {
+            return new Promise((resolve) => {
+                const keyword = ['保龄球'];
+                let attempts = 0;
+
+                function checkAnswer(ans) {
+                    if (keyword.some(k => ans.includes(k))) {
+                        resolve(true);
+                        return true;
+                    }
+                    attempts++;
+                    if (attempts < 2) {
+                        showInput('长生不老药又可以叫什么？', checkAnswer);
+                    } else {
+                        resolve(false);
+                    }
+                    return false;
+                }
+
+                showInput('长生不老药又可以叫什么？', checkAnswer);
+            });
+        }
+
+        function len8() {
+            return new Promise((resolve) => {
+                const keyword = ['卸妆水', '卸妆油'];
+                let attempts = 0;
+
+                function checkAnswer(ans) {
+                    if (keyword.some(k => ans.includes(k))) {
+                        resolve(true);
+                        return true;
+                    }
+                    attempts++;
+                    if (attempts < 2) {
+                        showInput('警察都怎么去除掉敌人的眼线的', checkAnswer);
+                    } else {
+                        resolve(false);
+                    }
+                    return false;
+                }
+
+                showInput('警察都怎么去除掉敌人的眼线的', checkAnswer);
+            });
+        }
+
+        function len9() {
+            return new Promise((resolve) => {
+                const keyword = ['我们这些努力不简单', '我们这些奴隶不煎蛋'];
+                let attempts = 0;
+
+                function checkAnswer(ans) {
+                    if (keyword.some(k => ans.includes(k))) {
+                        resolve(true);
+                        return true;
+                    }
+                    attempts++;
+                    if (attempts < 2) {
+                        showInput('国王叫奴隶煎蛋，为什么奴隶不煎蛋', checkAnswer);
+                    } else {
+                        resolve(false);
+                    }
+                    return false;
+                }
+
+                showInput('国王叫奴隶煎蛋，为什么奴隶不煎蛋', checkAnswer);
+            });
+        }
+
+        function len10() {
+            return new Promise((resolve) => {
+                const keyword = ['橙色', '果粒橙'];
+                let attempts = 0;
+
+                function checkAnswer(ans) {
+                    if (keyword.some(k => ans.includes(k))) {
+                        resolve(true);
+                        return true;
+                    }
+                    attempts++;
+                    if (attempts < 2) {
+                        showInput('请问苹果立起来是什么颜色？', checkAnswer);
+                    } else {
+                        resolve(false);
+                    }
+                    return false;
+                }
+
+                showInput('请问苹果立起来是什么颜色？', checkAnswer);
+            });
+        }
+
+        function len11() {
+            return new Promise((resolve) => {
+                const keyword = ['苹果'];
+                let attempts = 0;
+
+                function checkAnswer(ans) {
+                    if (keyword.some(k => ans.includes(k))) {
+                        resolve(true);
+                        return true;
+                    }
+                    attempts++;
+                    if (attempts < 2) {
+                        showInput('菠萝路过一群水果，拍了拍_____', checkAnswer);
+                    } else {
+                        resolve(false);
+                    }
+                    return false;
+                }
+
+                showInput('菠萝路过一群水果，拍了拍_____', checkAnswer);
+            });
+        }
+
+        // 随机事件函数
+        function fun0() {
+            addOutputLine("来了一个穿着破烂的老人，说他很久没吃东西了，能不能给他一个汉堡");
+            setTimeout(() => {
+                showChoices("", ["1给", "2不给"], (choice) => {
+                    if (choice === "1给") {
+                        addOutputLine("你给了老人一个汉堡，老人为表感谢，拿出一个魔杖，把你的食材变新鲜了");
+                        gameData.fresh += 10;
+                        gameData.meat -= 1;
+                    } else {
+                        addOutputLine("你没有同意，老人走掉了");
+                    }
+                    setTimeout(continueDaily, gameData.shortDelay);
+                });
+            }, gameData.ultraShortDelay);
+        }
+
+        function fun1() {
+            addOutputLine("来了一个神秘广告商，说可以给你的小摊拍摄宣传片，你选择");
+            setTimeout(() => {
+                showChoices("", ["1：大商场大屏（1000元）", "2：小红书推广（500元）", "3：夜市路口立牌广告（200元）", "4：还价", "5：不拍广告"], handleAdChoice);
+            }, gameData.ultraShortDelay);
+        }
+
+        function handleAdChoice(choice) {
+            if (choice === "5：不拍广告") {
+                addOutputLine("你放弃了拍宣传片");
+                setTimeout(continueDaily, gameData.shortDelay);
+                return;
+            }
+
+            if (choice === "4：还价") {
+                const r = Math.floor(Math.random() * 10) + 1;
+                if (r === 1) {
+                    addOutputLine('还价过程中，你发现这个广告商是【鸭小梨】，【鸭小梨】决定给你打骨折拍宣传片！');
+                    setTimeout(() => {
+                        showChoices("", ["1：大商场大屏（100元）", "2：小红书推广（50元）", "3：夜市路口立牌广告（20元）", "4：不拍广告"], (subChoice) => {
+                            handleAdSubChoice(subChoice, [100, 50, 20]);
+                        });
+                    }, gameData.ultraShortDelay);
+                } else if (r <= 5) {
+                    addOutputLine('神秘广告商同意你砍价');
+                    setTimeout(() => {
+                        showChoices("", ["1：大商场大屏（700元）", "2：小红书推广（400元）", "3：夜市路口立牌广告（150元）", "4：不拍广告"], (subChoice) => {
+                            handleAdSubChoice(subChoice, [700, 400, 150]);
+                        });
+                    }, gameData.ultraShortDelay);
+                } else if (r <= 8) {
+                    addOutputLine('神秘广告商不同意你砍价');
+                    setTimeout(() => {
+                        showChoices("", ["1：大商场大屏（1000元）", "2：小红书推广（500元）", "3：夜市路口立牌广告（200元）", "4：不拍广告"], (subChoice) => {
+                            handleAdSubChoice(subChoice, [1000, 500, 200]);
+                        });
+                    }, gameData.ultraShortDelay);
+                } else {
+                    addOutputLine('神秘广告商不同意你砍价');
+                    setTimeout(() => {
+                        showChoices("", ["1：大商场大屏（1000元）", "2：小红书推广（500元）", "3：夜市路口立牌广告（200元）", "4：不拍广告"], (subChoice) => {
+                            if (subChoice === "4：不拍广告") {
+                                addOutputLine("你放弃了拍宣传片");
+                                setTimeout(continueDaily, gameData.shortDelay);
+                            } else {
+                                const a = parseInt(subChoice.charAt(0)) - 1;
+                                const priceMap = [1000, 500, 200];
+
+                                if (gameData.money < priceMap[a]) {
+                                    addOutputLine("你的钱钱不够哦，请重新选择");
+                                    setTimeout(() => {
+                                        showChoices("", ["1：大商场大屏（1000元）", "2：小红书推广（500元）", "3：夜市路口立牌广告（200元）", "4：不拍广告"], handleAdChoice);
+                                    }, gameData.ultraShortDelay);
+                                    return;
+                                }
+
+                                addOutputLine('谁知道这个广告商是个骗子，他拿了钱就跑了!');
+                                gameData.money -= priceMap[a];
+
+                                const r = Math.floor(Math.random() * gameData.limit2) + 1;
+                                if ((a === 0 || a === 1) && r <= gameData.lenNum) {
+                                    addOutputLine('触发问答环节，回答正确即可免除1000元损失');
+                                    setTimeout(async () => {
+                                        const result = await window[`len${r}`]();
+                                        if (result) {
+                                            addOutputLine('回答正确，免除1000元损失');
+                                            gameData.money += 1000;
+                                        } else {
+                                            addOutputLine('oh no，下次努力吧');
+                                        }
+                                        setTimeout(continueDaily, gameData.shortDelay);
+                                    }, gameData.shortDelay);
+                                } else {
+                                    setTimeout(continueDaily, gameData.shortDelay);
+                                }
+                            }
+                        });
+                    }, gameData.ultraShortDelay);
+                }
+            } else {
+                const a = parseInt(choice.charAt(0)) - 1;
+                const priceMap = [1000, 500, 200];
+
+                if (gameData.money < priceMap[a]) {
+                    addOutputLine("你的钱钱不够哦，请重新选择");
+                    setTimeout(() => {
+                        showChoices("", ["1：大商场大屏（1000元）", "2：小红书推广（500元）", "3：夜市路口立牌广告（200元）", "4：还价", "5：不拍广告"], handleAdChoice);
+                    }, gameData.ultraShortDelay);
+                    return;
+                }
+
+                handleAdSubChoice(choice, priceMap);
+            }
+        }
+
+        function handleAdSubChoice(choice, priceMap) {
+            if (choice === "4：不拍广告") {
+                addOutputLine("你放弃了拍宣传片");
+                setTimeout(continueDaily, gameData.shortDelay);
+                return;
+            }
+
+            const a = parseInt(choice.charAt(0)) - 1;
+
+            if (gameData.money < priceMap[a]) {
+                addOutputLine("你的钱钱不够哦");
+                setTimeout(continueDaily, gameData.shortDelay);
+                return;
+            }
+
+            if (a === 0) {
+                addOutputLine("你的小摊的宣传片会在第二天投放在大商场大屏上");
+                gameData.rate2 += 0.5;
+            } else if (a === 1) {
+                addOutputLine("你的小摊的宣传片会在第二天在小红书进行推广");
+                gameData.rate2 += 0.2;
+            } else if (a === 2) {
+                addOutputLine("明天夜市路口会出现你的小摊的立牌广告");
+                gameData.rate2 += 0.1;
+            }
+
+            gameData.money -= priceMap[a];
+            setTimeout(continueDaily, gameData.shortDelay);
+        }
+
+        function fun2() {
+            if (gameData.unlocked.includes('durian')) {
+                setTimeout(continueDaily, gameData.shortDelay);
+                return;
+            }
+
+            addOutputLine('神秘商人【榴小莲】来到了你的摊子，她问你是否想要解锁榴莲汉堡的秘方？');
+            setTimeout(() => {
+                addOutputLine(`榴莲汉堡的成本增加2元，售价增加5元，解锁榴莲汉堡需花费500元，当前余额${gameData.money}元`);
+                setTimeout(() => {
+                    showChoices("", ["1：买", "2：不买"], (choice) => {
+                        if (choice === "1：买" && gameData.money >= 500) {
+                            addOutputLine('恭喜你解锁了“榴莲汉堡”！');
+                            gameData.cost += 2;
+                            gameData.price += 5;
+                            gameData.money -= 500;
+                            gameData.unlocked.push('durian');
+
+                            const r = Math.floor(Math.random() * 3) + 1;
+                            setTimeout(() => {
+                                if (r === 1) {
+                                    addOutputLine('一部分顾客表示，无法接受榴莲汉堡，永久损失一部分顾客');
+                                    gameData.flowMap[gameData.map] -= 20;
+                                } else if (r === 2) {
+                                    addOutputLine('榴莲汉堡的独特性吸引了一部分顾客来尝鲜，客流量永久增加');
+                                    gameData.flowMap[gameData.map] += 20;
+                                }
+                                setTimeout(continueDaily, gameData.shortDelay);
+                            }, gameData.ultraShortDelay);
+                        } else if (choice === "1：买" && gameData.money < 500) {
+                            addOutputLine('你的钱钱不够哦~ 榴小莲走了');
+                            setTimeout(continueDaily, gameData.shortDelay);
+                        } else {
+                            addOutputLine('榴小莲走了，无事发生');
+                            setTimeout(continueDaily, gameData.shortDelay);
+                        }
+                    });
+                }, gameData.ultraShortDelay);
+            }, gameData.ultraShortDelay);
+        }
+
+        function fun3() {
+            if (gameData.unlocked.includes('coconut')) {
+                setTimeout(continueDaily, gameData.shortDelay);
+                return;
+            }
+
+            addOutputLine('神秘商人【椰小子】来到了你的摊子，她问你是否想要解锁美味椰子饮料的秘方？');
+            setTimeout(() => {
+                addOutputLine(`售卖汉堡椰汁套餐的成本增加2元，售价增加5元，解锁需花费500元，当前余额${gameData.money}元`);
+                setTimeout(() => {
+                    showChoices("", ["1：买", "2：不买"], (choice) => {
+                        if (choice === "1：买" && gameData.money >= 500) {
+                            addOutputLine('恭喜你解锁了“椰子饮料”！');
+                            gameData.cost += 2;
+                            gameData.price += 4;
+                            gameData.money -= 500;
+                            gameData.unlocked.push('coconut');
+
+                            const r = Math.floor(Math.random() * 3) + 1;
+                            setTimeout(() => {
+                                if (r === 1) {
+                                    addOutputLine('椰小子带来的是椰子水，一部分顾客跑的远远的，永久损失一部分顾客');
+                                    gameData.flowMap[gameData.map] -= 20;
+                                } else if (r === 2) {
+                                    addOutputLine('椰小子带来的是椰子汁，吸引了一部分顾客，客流量永久少量增加');
+                                    gameData.flowMap[gameData.map] += 20;
+                                }
+                                setTimeout(continueDaily, gameData.shortDelay);
+                            }, gameData.ultraShortDelay);
+                        } else if (choice === "1：买" && gameData.money < 500) {
+                            addOutputLine('你的钱钱不够哦~椰小子走了');
+                            setTimeout(continueDaily, gameData.shortDelay);
+                        } else {
+                            addOutputLine('椰小子走了，无事发生');
+                            setTimeout(continueDaily, gameData.shortDelay);
+                        }
+                    });
+                }, gameData.ultraShortDelay);
+            }, gameData.ultraShortDelay);
+        }
+
+        function fun4() {
+            addOutputLine('偶遇夜市老板【香小蕉】，小手一挥，给了你1000元');
+            gameData.money += 1000;
+            setTimeout(continueDaily, gameData.shortDelay);
+        }
+
+        function fun_durain() {
+            if (!gameData.unlocked.includes('durian')) {
+                setTimeout(continueDaily, gameData.shortDelay);
+                return;
+            }
+
+            addOutputLine('你的处理榴莲的时候，一不小心被榴莲砸到了脚，你得赶紧去医院了！');
+            setTimeout(() => {
+                addOutputLine('你需要提前收摊，经营时间缩短一半');
+                gameData.rate -= 0.5;
+
+                const r = Math.floor(Math.random() * 2) + 1;
+                if (r === 1) {
+                    addOutputLine('触发问答环节，回答正确即可免伤');
+                    setTimeout(async () => {
+                        const result = await len0();
+                        if (result) {
+                            addOutputLine('回答正确，你不用去医院啦，继续经营');
+                            gameData.rate += 0.5;
+                        } else {
+                            addOutputLine('oh no，去医院歇会吧~');
+                        }
+                        setTimeout(continueDaily, gameData.shortDelay);
+                    }, gameData.shortDelay);
+                } else {
+                    setTimeout(continueDaily, gameData.shortDelay);
+                }
+            }, gameData.ultraShortDelay);
+        }
+
+        function fun5() {
+            addOutputLine('轰！');
+            setTimeout(() => {
+                addOutputLine('轰！轰！');
+                setTimeout(() => {
+                    addOutputLine('轰！轰！轰！');
+                    setTimeout(() => {
+                        addOutputLine('一颗陨石砸了下来，把夜市砸了个稀巴烂');
+                        setTimeout(() => {
+                            const r = Math.floor(Math.random() * 4) + 1;
+                            if (r === 1) {
+                                addOutputLine('你很幸运没有被砸到');
+                                setTimeout(() => {
+                                    addOutputLine('但是客流量变小了');
+                                    gameData.flowMap[gameData.map] -= Math.floor(gameData.flowMap[gameData.map] * 0.3);
+                                    setTimeout(continueDaily, gameData.shortDelay);
+                                }, gameData.ultraShortDelay);
+                            } else if (r === 2) {
+                                addOutputLine('你很幸运没有被砸到');
+                                setTimeout(() => {
+                                    addOutputLine('新闻播报了这次事件，很多人特意过来看热闹');
+                                    gameData.flowMap[gameData.map] += Math.floor(gameData.flowMap[gameData.map] * 0.3);
+                                    setTimeout(continueDaily, gameData.shortDelay);
+                                }, gameData.ultraShortDelay);
+                            } else {
+                                addOutputLine('你的摊子被砸毁了，你人也受伤了');
+                                setTimeout(() => {
+                                    addOutputLine('你无法再经营小摊了，需紧急去医院治疗，游戏提前结束');
+
+                                    const r = Math.floor(Math.random() * gameData.limit2) + 1;
+                                    if (r <= gameData.lenNum) {
+                                        setTimeout(async () => {
+                                            addOutputLine('开启问答环节，回答对即可免伤继续经营');
+                                            const result = await window[`len${r}`]();
+                                            if (result) {
+                                                addOutputLine('回答正确，游戏继续');
+                                                setTimeout(continueDaily, gameData.shortDelay);
+                                            } else {
+                                                addOutputLine('oh no!回答失败，去医院修养修养吧');
+                                                gameData.meat = 0;
+                                                gameData.dayTime = gameData.dayMax + 1;
+                                                gameData.dayCheck = 10;
+                                                setTimeout(continueDaily, gameData.shortDelay);
+                                            }
+                                        }, gameData.shortDelay);
+                                    } else {
+                                        gameData.meat = 0;
+                                        gameData.dayCheck = 10;
+                                        gameData.dayTime = gameData.dayMax + 1;
+                                        setTimeout(continueDaily, gameData.shortDelay);
+                                    }
+                                }, gameData.ultraShortDelay);
+                            }
+                        }, gameData.ultraShortDelay);
+                    }, gameData.ultraShortDelay);
+                }, gameData.ultraShortDelay);
+            }, gameData.ultraShortDelay);
+        }
+
+        function fun6() {
+            addOutputLine('神秘顾客【橘小子】来到了你的小摊，看你白天上班，晚上出摊，身心俱疲，问你要不要进行心里咨询');
+            setTimeout(() => {
+                showChoices("心理咨询收费100元", ["1：做咨询", "2：不做咨询"], (choice) => {
+                    if (choice === "1：做咨询") {
+                        gameData.money -= 100;
+                        addOutputLine('橘小子：dskhfh8*&%$*GBN()b876rHJF^vg90-nh8');
+                        setTimeout(() => {
+                            addOutputLine('橘小子：jsdajiod*$GJFfd69)BBj&Fjsk^Cnl(ljk');
+                            setTimeout(() => {
+                                addOutputLine('橘小子：bhsp(*&%bsyvkp2^(*754sbndl9(&VBJJ^d');
+                                setTimeout(() => {
+                                    addOutputLine('咨询结束');
+                                    setTimeout(continueDaily, gameData.shortDelay);
+                                }, gameData.ultraShortDelay);
+                            }, gameData.ultraShortDelay);
+                        }, gameData.ultraShortDelay);
+                    } else {
+                        addOutputLine('橘小子离开了，无事发生');
+                        setTimeout(continueDaily, gameData.shortDelay);
+                    }
+                });
+            }, gameData.ultraShortDelay);
+        }
+
+        function fun7() {
+            addOutputLine('在你专心做汉堡的时候，有个小偷在偷你的钱！');
+            setTimeout(() => {
+                const stolen = gameData.money;
+                addOutputLine(`小偷偷走了你全部的钱钱！损失${stolen}元`);
+                gameData.money = 0;
+
+                const r = Math.floor(Math.random() * gameData.limit2) + 1;
+                if (r <= gameData.lenNum) {
+                    addOutputLine('触发问答环节，回答正确即可不被偷');
+                    setTimeout(async () => {
+                        const result = await window[`len${r}`]();
+                        if (result) {
+                            addOutputLine('回答正确，你及时发现了小偷的行为，抓住了他，夺回了钱钱');
+                            gameData.money = stolen;
+                        } else {
+                            addOutputLine('oh no，下次努力吧');
+                        }
+                        setTimeout(continueDaily, gameData.shortDelay);
+                    }, gameData.shortDelay);
+                } else {
+                    setTimeout(continueDaily, gameData.shortDelay);
+                }
+            }, gameData.ultraShortDelay);
+        }
+
+        function fun8() {
+            addOutputLine('神秘顾客【苹小果】来到了你的小摊');
+            setTimeout(() => {
+                addOutputLine(`苹小果：平平安安，顺顺遂遂（汉堡价格加5元）`);
+                gameData.price += 5;
+                setTimeout(continueDaily, gameData.shortDelay);
+            }, gameData.ultraShortDelay);
+        }
+
+        function fun9() {
+            addOutputLine('不好，今天是个雨天');
+            setTimeout(() => {
+                addOutputLine('来逛夜市的人少了一半');
+                gameData.rate -= 0.5;
+                gameData.rate2 += 2;
+                setTimeout(continueDaily, gameData.shortDelay);
+            }, gameData.ultraShortDelay);
+        }
+
+        function fun10() {
+            addOutputLine('一个顾客声称自己吃了你家的汉堡上吐下泻，在你摊子前面闹事');
+            setTimeout(() => {
+                if (gameData.fresh >= 6) {
+                    addOutputLine('很多人在围观，警察也来了，但查出来你的食材确实很新鲜，所以你证明了自己的清白');
+                    setTimeout(() => {
+                        addOutputLine('但是争吵持续了好一会，你的顾客还是因此减少了');
+                        gameData.rate -= 0.3;
+                        setTimeout(continueDaily, gameData.shortDelay);
+                    }, gameData.ultraShortDelay);
+                } else {
+                    addOutputLine('很多人在围观，警察也来了，但查出来你的食材确实没那么新鲜，你最后赔了你一半的钱钱');
+                    setTimeout(() => {
+                        addOutputLine('争吵持续了好一会，你的顾客因此减少了');
+                        gameData.rate -= 0.3;
+
+                        const m = Math.floor(gameData.money / 2);
+                        gameData.money -= m;
+
+                        const r = Math.floor(Math.random() * gameData.limit2) + 1;
+                        if (m >= 1000 && r <= gameData.lenNum) {
+                            addOutputLine('触发问答环节，回答正确即可免除损失');
+                            setTimeout(async () => {
+                                const result = await window[`len${r}`]();
+                                if (result) {
+                                    addOutputLine('回答正确，免除惩罚');
+                                    gameData.money += m;
+                                } else {
+                                    addOutputLine(`oh no，被讹走了${m}元，当前余额${gameData.money}元`);
+                                }
+                                setTimeout(continueDaily, gameData.shortDelay);
+                            }, gameData.shortDelay);
+                        } else {
+                            setTimeout(continueDaily, gameData.shortDelay);
+                        }
+                    }, gameData.ultraShortDelay);
+                }
+            }, gameData.ultraShortDelay);
+        }
+
+        function fun11() {
+            addOutputLine('新闻播报：最近食品安全局查到很多夜市小摊不讲究卫生');
+            setTimeout(() => {
+                addOutputLine('使用过期食材，使用地沟油，导致很多人吃了进医院');
+                setTimeout(() => {
+                    addOutputLine('请大家注重食品安全');
+                    setTimeout(() => {
+                        addOutputLine('结果：客流量永久减少30%');
+                        gameData.flowMap[gameData.map] -= Math.floor(gameData.flowMap[gameData.map] * 0.3);
+                        setTimeout(continueDaily, gameData.shortDelay);
+                    }, gameData.ultraShortDelay);
+                }, gameData.ultraShortDelay);
+            }, gameData.ultraShortDelay);
+        }
+
+        function fun12() {
+            addOutputLine('遇上了一帮子喝醉酒的小混混');
+            setTimeout(() => {
+                addOutputLine('他们发酒疯的时候撞倒了你的摊子');
+                setTimeout(() => {
+                    const r = Math.floor(Math.random() * (gameData.meat + 1));
+                    addOutputLine(`损失一部分食材（${r}份食材）`);
+                    gameData.meat -= r;
+                    setTimeout(continueDaily, gameData.shortDelay);
+                }, gameData.ultraShortDelay);
+            }, gameData.ultraShortDelay);
+        }
+
+        function fun13() {
+            addOutputLine('你的摊子隔壁也来了一个卖汉堡的，来和你抢生意');
+            setTimeout(() => {
+                addOutputLine('ta走薄利多销路线，你现在面临两个选择');
+                setTimeout(() => {
+                    showChoices("", ["1：降价出售（单价-2）", "2：原价出售（客流量永久-20%）"], (choice) => {
+                        if (choice === "1：降价出售（单价-2）") {
+                            addOutputLine('你选择了降价出售');
+                            gameData.price -= 2;
+                            setTimeout(continueDaily, gameData.shortDelay);
+                        } else {
+                            addOutputLine('你选择了硬刚！（客流量减少）');
+                            const flowChange = Math.floor(gameData.flowMap[gameData.map] * 0.2);
+                            gameData.flowMap[gameData.map] -= flowChange;
+
+                            const r = Math.floor(Math.random() * gameData.limit2) + 1;
+                            if (r <= gameData.lenNum) {
+                                addOutputLine('触发问答环节，回答正确即可免受惩罚');
+                                setTimeout(async () => {
+                                    const result = await window[`len${r}`]();
+                                    if (result) {
+                                        addOutputLine('回答正确，客流量不变');
+                                        gameData.flowMap[gameData.map] += flowChange;
+                                    } else {
+                                        addOutputLine('oh no，回答错误，客流量减少。。');
+                                    }
+                                    setTimeout(continueDaily, gameData.shortDelay);
+                                }, gameData.shortDelay);
+                            } else {
+                                setTimeout(continueDaily, gameData.shortDelay);
+                            }
+                        }
+                    });
+                }, gameData.ultraShortDelay);
+            }, gameData.ultraShortDelay);
+        }
+
+        function fun14() {
+            if (gameData.unlocked.includes('accountant')) {
+                setTimeout(continueDaily, gameData.shortDelay);
+                return;
+            }
+
+            addOutputLine('神秘顾客【菠小萝】来到了你的摊子，说自己有会计证，可以帮你算账');
+            setTimeout(() => {
+                const daysLeft = gameData.dayMax - gameData.dayTime + 1;
+                const cost = 50 * daysLeft;
+                addOutputLine(`需要聘请菠小萝来帮忙收银吗？（50元/天）这样你有更多的时间招揽顾客，共需${cost}元`);
+                setTimeout(() => {
+                    showChoices("", ["1：聘请(至游戏结束)", "2：不聘请"], (choice) => {
+                        if (choice === "1：聘请(至游戏结束)") {
+                            if (gameData.money < cost) {
+                                addOutputLine('你的钱钱不够哦~ 菠小萝走了');
+                                setTimeout(continueDaily, gameData.shortDelay);
+                            } else {
+                                addOutputLine(`你聘请了菠小萝来收银， 花费${cost}元`);
+                                gameData.money -= cost;
+                                gameData.unlocked.push('accountant');
+                                gameData.flowMap[gameData.map] += 10;
+                                setTimeout(continueDaily, gameData.shortDelay);
+                            }
+                        } else {
+                            addOutputLine('菠小萝走了');
+                            setTimeout(continueDaily, gameData.shortDelay);
+                        }
+                    });
+                }, gameData.ultraShortDelay);
+            }, gameData.ultraShortDelay);
+        }
+
+        // 添加输出行
+        function addOutputLine(text) {
+            gameData.outputLines.push(text);
+            updateOutputDisplay();
+            gameOutput.scrollTop = gameOutput.scrollHeight;
+        }
+
+        // 更新输出显示
+        function updateOutputDisplay() {
+            gameOutput.textContent = gameData.outputLines.join('\n');
+        }
+
+        // 显示输入框
+        function showInput(promptText, callback) {
+            choicesArea.classList.add('hidden');
+            addOutputLine(promptText);
+            inputArea.classList.remove('hidden');
+            userInput.value = '';
+            userInput.focus();
+            gameData.currentInputType = 'text';
+            gameData.currentChoiceCallback = callback;
+        }
+
+        // 显示选择按钮
+        function showChoices(promptText, choices, callback) {
+            inputArea.classList.add('hidden');
+            if (promptText) {
+                addOutputLine(promptText);
+            }
+            choicesArea.classList.remove('hidden');
+            choicesArea.innerHTML = '';
+
+            choices.forEach(choice => {
+                const button = document.createElement('button');
+                button.className = 'bg-terminal-button text-terminal-buttonText px-4 py-2 rounded hover:bg-gray-600 transition-colors';
+                button.textContent = choice;
+                button.addEventListener('click', () => {
+                    choicesArea.classList.add('hidden');
+                    callback(choice);
+                });
+                choicesArea.appendChild(button);
+            });
+
+            gameData.currentInputType = 'choice';
+            gameData.currentChoiceCallback = callback;
+        }
+
+        // 处理输入提交
+        function handleInputSubmit() {
+            const input = userInput.value.trim();
+            if (input) {
+                inputArea.classList.add('hidden');
+                if (gameData.currentChoiceCallback) {
+                    gameData.currentChoiceCallback(input);
+                }
+            }
+        }
+
+        // 初始化游戏
+        window.onload = initGame;
+    </script>
+</body>
+</html>
