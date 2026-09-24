@@ -1394,5 +1394,12 @@
         // 初始化游戏
         window.onload = initGame;
     </script>
+
+    <!-- 返回主页（图片按钮，可替换 assets/back-icon.png） -->
+    <a href="index.html" class="cb-back" title="返回主页" aria-label="返回主页"><img src="assets/back-icon.png" alt="返回主页"></a>
+
+    <!-- 香蕉的解忧小铺：悬浮聊天小窗 -->
+    <script src="chat-answers.js"></script>
+    <script src="chat-widget.js"></script>
 </body>
 </html>
